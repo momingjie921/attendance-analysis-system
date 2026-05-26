@@ -6,6 +6,7 @@ from datetime import datetime
 from sqlalchemy.exc import IntegrityError
 from models import db, User, Employee, Department, Attendance, AbnormalAttendance, SystemConfig, Leave, HolidayCalendar
 from utils.decorators import api_role_required
+from utils.audit import audit_log
 
 backup_bp = Blueprint('backup_api', __name__)
 
@@ -215,6 +216,7 @@ def perform_auto_backup():
 def create_backup():
     try:
         filename = generate_backup_file(backup_type='manual')
+        audit_log("backup.create", target=filename)
         return jsonify({'code': 200, 'msg': '备份成功', 'data': {'filename': filename}})
     except Exception as e:
         return jsonify({'code': 500, 'msg': f'备份失败: {str(e)}'})
@@ -389,6 +391,7 @@ def restore_backup():
             
         db.session.commit()
         db.session.execute(db.text("SET FOREIGN_KEY_CHECKS = 1;"))
+        audit_log("backup.restore", target=filename)
         
         return jsonify({'code': 200, 'msg': '恢复成功'})
         
@@ -430,6 +433,7 @@ def delete_backup():
             return jsonify({'code': 404, 'msg': '备份文件不存在'})
             
         os.remove(file_path)
+        audit_log("backup.delete", target=filename)
         return jsonify({'code': 200, 'msg': '删除成功'})
         
     except Exception as e:

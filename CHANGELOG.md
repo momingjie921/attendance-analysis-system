@@ -36,3 +36,23 @@
 - 数据导入接口调用权限
 - 备份恢复/下载/删除接口安全性
 - 应用启动配置与跨域访问策略
+
+## [2026-05-26] 可上线最小改造包
+
+### 修复内容
+
+- 新增密码强度校验（`utils/security.py`）：
+  - 密码必须至少 8 位，且包含大小写字母和数字。
+  - 员工建号、账号创建、密码重置、账号更新均启用校验。
+
+- 新增关键操作审计日志（`utils/audit.py`）：
+  - 覆盖导入、备份创建、备份恢复、备份删除、账号创建、密码重置等核心操作。
+
+- 收紧运行安全默认值（`app.py`）：
+  - `SESSION_COOKIE_SECURE` 默认随 `FLASK_DEBUG` 自动切换（生产默认 `true`）。
+  - 增加安全响应头：`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Cache-Control`。
+  - 演示账号初始化改为环境变量开关：`ENABLE_DEMO_DATA`，默认关闭。
+
+### 文档变更
+
+- `README.md` 增加 `ENABLE_DEMO_DATA` 配置项和生产环境安全建议。

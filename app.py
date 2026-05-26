@@ -24,6 +24,7 @@ app = Flask(
     template_folder="templates",
     static_folder="static"
 )
+is_debug = os.getenv("FLASK_DEBUG", "False") == "True"
 
 # 从环境变量读取配置
 secret_key = os.getenv('SECRET_KEY')
@@ -32,7 +33,7 @@ if not secret_key:
     logging.warning('SECRET_KEY not set. Generated a temporary key for this process.')
 app.secret_key = secret_key
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)  # 会话超时2小时
-app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'False').lower() == 'true'  # 默认为False以支持本地开发
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', str(not is_debug)).lower() == 'true'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
@@ -86,6 +87,10 @@ def log_response_info(response):
     if hasattr(g, 'start_time'):
         duration = (datetime.now() - g.start_time).total_seconds() * 1000  # 毫秒
         logging.info(f'Response: {response.status_code} - Duration: {duration:.2f}ms')
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'same-origin'
+    response.headers['Cache-Control'] = 'no-store'
     return response
 
 init_database(app)
@@ -246,7 +251,12 @@ def init_base_data():
         db.session.commit()
 
 
-init_base_data()
+enable_demo_data = os.getenv('ENABLE_DEMO_DATA', 'false').lower() == 'true'
+if enable_demo_data:
+    init_base_data()
+else:
+    with app.app_context():
+        db.create_all()
 
 
 @app.route("/")
@@ -528,7 +538,7 @@ def unauthorized(e):
 if __name__ == "__main__":
     # 从环境变量读取运行配置
     app.run(
-        debug=os.getenv("FLASK_DEBUG", "False") == "True",
+        debug=is_debug,
         host=os.getenv("HOST", "0.0.0.0"),
         port=int(os.getenv("PORT", 5000))
     )

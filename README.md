@@ -35,6 +35,7 @@ pip install -r requirements.txt
 SECRET_KEY=replace-with-a-strong-random-string
 DATABASE_URI=mysql+pymysql://username:password@localhost:3306/attendance_system
 CORS_ORIGINS=http://localhost:5000,http://127.0.0.1:5000
+ENABLE_DEMO_DATA=false
 FLASK_DEBUG=False
 HOST=0.0.0.0
 PORT=5000
@@ -53,6 +54,7 @@ python app.py
 - 必须配置 `SECRET_KEY`，不要使用弱密钥。
 - 生产环境请设置 `FLASK_DEBUG=False`。
 - `CORS_ORIGINS` 仅填写可信前端域名，不要使用开放通配配置。
+- 生产环境建议保持 `ENABLE_DEMO_DATA=false`，避免自动创建演示账号。
 - 导入、备份、恢复、删除接口属于高权限操作，建议只对管理员/经理开放并配合审计日志。
 - 备份文件包含敏感数据（含用户密码哈希），请妥善保存并限制访问权限。
 

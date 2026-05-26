@@ -10,6 +10,7 @@ from utils.import_helpers import (
     get_column_mapping, parse_attendance_row, parse_time_config
 )
 from utils.decorators import api_role_required
+from utils.audit import audit_log
 
 import_bp = Blueprint('import_api', __name__)
 
@@ -238,6 +239,11 @@ def import_attendance():
             log.fail_reason = json.dumps(errors[:20], ensure_ascii=False)
             
         db.session.commit()
+        audit_log(
+            "import.attendance",
+            target=batch_id,
+            detail={"success": success_count, "fail": fail_count, "skipped": skipped_rows}
+        )
         
         return jsonify({
             'code': 200,
@@ -255,6 +261,7 @@ def import_attendance():
         log.import_status = 'failed'
         log.fail_reason = str(e)
         db.session.commit()
+        audit_log("import.attendance", target=batch_id, result="failed", detail=str(e)[:200])
         
         msg = str(e)
         if "Excel file format cannot be determined" in msg:

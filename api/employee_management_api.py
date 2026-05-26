@@ -6,6 +6,8 @@ from models import db, Employee, Department, User, Attendance, AbnormalAttendanc
 from utils.decorators import api_role_required
 from utils.pagination import paginate_query, api_paginated_response
 from utils.api_helpers import api_response
+from utils.security import validate_password_strength
+from utils.audit import audit_log
 
 
 @api_role_required(["admin"])
@@ -136,8 +138,12 @@ def create_employee():
         # 如果需要创建用户账户
         if data.get('create_user'):
             username = data.get('username', data['emp_code'])
-            password = data.get('password', '123456')
+            password = data.get('password', 'TempPass123')
             role = data.get('role', 'employee')
+            is_valid, password_msg = validate_password_strength(password)
+            if not is_valid:
+                db.session.rollback()
+                return api_response(400, password_msg)
 
             # 检查用户名是否已存在
             if User.query.filter_by(username=username).first():
@@ -258,7 +264,7 @@ def update_employee():
                     emp_id=emp_id,
                     role=role,
                     status=employee.status,
-                    password=password if password else '123456'
+                    password=password if password else 'TempPass123'
                 )
                 db.session.add(new_user)
             else:
@@ -272,9 +278,13 @@ def update_employee():
                     user.role = role
                 
                 if password:
+                    is_valid, password_msg = validate_password_strength(password)
+                    if not is_valid:
+                        return api_response(400, password_msg)
                     user.set_password(password)
 
         db.session.commit()
+        audit_log("employee.update", target=str(emp_id))
 
         return api_response(200, "更新员工信息成功")
 
@@ -390,8 +400,11 @@ def create_user_account():
 
         # 获取账户信息
         username = data.get('username', employee.emp_code)
-        password = data.get('password', '123456')
+        password = data.get('password', 'TempPass123')
         role = data.get('role', 'employee')
+        is_valid, password_msg = validate_password_strength(password)
+        if not is_valid:
+            return api_response(400, password_msg)
 
         # 检查用户名是否已存在
         if User.query.filter_by(username=username).first():
@@ -408,6 +421,7 @@ def create_user_account():
 
         db.session.add(new_user)
         db.session.commit()
+        audit_log("user.create_account", target=username)
 
         return api_response(200, "创建用户账户成功", {
             'username': username,
@@ -426,7 +440,10 @@ def reset_user_password():
     try:
         data = request.get_json()
         emp_id = data.get('emp_id')
-        new_password = data.get('password', '123456')
+        new_password = data.get('password', 'TempPass123')
+        is_valid, password_msg = validate_password_strength(new_password)
+        if not is_valid:
+            return api_response(400, password_msg)
 
         if not emp_id:
             return api_response(400, "缺少员工ID")
@@ -440,6 +457,7 @@ def reset_user_password():
         user.set_password(new_password)
 
         db.session.commit()
+        audit_log("user.reset_password", target=user.username)
 
         return api_response(200, "密码重置成功")
 
