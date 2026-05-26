@@ -9,10 +9,12 @@ from utils.import_helpers import (
     get_system_config, find_best_match, read_uploaded_file, read_uploaded_file_headers,
     get_column_mapping, parse_attendance_row, parse_time_config
 )
+from utils.decorators import api_role_required
 
 import_bp = Blueprint('import_api', __name__)
 
 @import_bp.route('/import/analyze', methods=['POST'])
+@api_role_required(["admin", "manager"])
 def analyze_file():
     """解析上传文件，返回列名和建议映射"""
     # 验证登录
@@ -57,6 +59,7 @@ def analyze_file():
         return jsonify({'code': 500, 'msg': f'文件解析失败: {error_msg}'}), 500
 
 @import_bp.route('/import/attendance', methods=['POST'])
+@api_role_required(["admin", "manager"])
 def import_attendance():
     # 1. 验证用户登录
     username = session.get('username')

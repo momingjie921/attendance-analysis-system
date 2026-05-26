@@ -26,7 +26,11 @@ app = Flask(
 )
 
 # 从环境变量读取配置
-app.secret_key = os.getenv('SECRET_KEY', 'default-secret-key-123456')
+secret_key = os.getenv('SECRET_KEY')
+if not secret_key:
+    secret_key = os.urandom(32).hex()
+    logging.warning('SECRET_KEY not set. Generated a temporary key for this process.')
+app.secret_key = secret_key
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)  # 会话超时2小时
 app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'False').lower() == 'true'  # 默认为False以支持本地开发
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -37,7 +41,9 @@ app.config['WTF_CSRF_CHECK_DEFAULT'] = False  # 禁用默认CSRF检查
 app.config['WTF_CSRF_METHODS'] = ['POST', 'PUT', 'DELETE', 'PATCH']  # 检查的方法
 
 # 初始化CORS
-CORS(app, supports_credentials=True)
+cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:5000,http://127.0.0.1:5000')
+allowed_origins = [origin.strip() for origin in cors_origins.split(',') if origin.strip()]
+CORS(app, supports_credentials=True, origins=allowed_origins)
 
 # 初始化CSRF保护
 csrf = CSRFProtect(app)

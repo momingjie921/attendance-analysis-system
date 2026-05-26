@@ -272,7 +272,7 @@ def update_employee():
                     user.role = role
                 
                 if password:
-                    user.password = password
+                    user.set_password(password)
 
         db.session.commit()
 
@@ -404,7 +404,7 @@ def create_user_account():
             role=role,
             status=1
         )
-        new_user.password_hash = password  # 使用正确的密码设置方式
+        new_user.password = password
 
         db.session.add(new_user)
         db.session.commit()
@@ -437,7 +437,7 @@ def reset_user_password():
             return api_response(404, "该员工没有用户账户")
 
         # 重置密码
-        user.password_hash = new_password
+        user.set_password(new_password)
 
         db.session.commit()
 

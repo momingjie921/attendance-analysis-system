@@ -1,67 +1,67 @@
-# 考勤管理与智能化分析系统
+# Attendance Analysis System
 
-基于 Python Flask 框架开发的智能化考勤管理与分析系统，旨在为企业提供高效、精准的考勤数字化管理解决方案。
+基于 Flask + SQLAlchemy 的考勤管理与分析系统，支持多角色登录、考勤导入、异常分析、请假管理和数据备份恢复。
 
-## 项目背景
+## 技术栈
 
-本项目作为毕业设计作品，深入探讨了企业考勤管理中的数据清洗、自动化判定及多维可视化分析等核心问题。系统实现了从原始打卡数据导入、智能化逻辑计算到多维度管理驾驶舱的全链路闭环。
+- Python 3.12
+- Flask
+- SQLAlchemy
+- MySQL 5.7+
+- Pandas
+- ECharts
 
-## 核心功能
+## 项目结构
 
-- **智能化考勤引擎**: 自动感知法定节假日、调休及请假状态，实现精准的迟到、早退、旷工自动判定。
-- **多级角色权限控制**: 严密的 RBAC 模型，支持管理员、部门经理、普通员工三级权限隔离。
-- **管理驾驶舱 (Dashboard)**: 基于 ECharts 的实时数据可视化，支持出勤率趋势、部门异常分布等深度分析。
-- **数据自动化处理**: 支持 Excel/CSV 考勤数据智能导入，具备字段自动映射与异常数据预检功能。
-- **自动化预警体系**: 集成 SMTP 邮件引擎，实现异常考勤的批量自动提醒。
-- **数据安全保障**: 内置无人值守自动备份机制，支持系统数据的全量备份与一键恢复。
+- `app.py`: 应用入口与路由注册
+- `api/`: 业务接口（导入、备份、统计、管理）
+- `models/`: 数据模型定义
+- `utils/`: 工具函数与通用装饰器
+- `templates/`: 页面模板
+- `static/`: 静态资源
+- `config/`: 数据库与配置初始化
 
-## 技术架构
+## 快速开始
 
-- **后端**: Python 3.12 + Flask + SQLAlchemy (ORM)
-- **数据库**: MySQL 5.7+
-- **数据处理**: Pandas (高性能清洗)
-- **前端**: HTML5 + CSS3 + JavaScript + ECharts
-- **任务调度**: APScheduler (定时任务)
+1. 安装依赖
 
-## 快速上手
-
-### 1. 环境准备
-- 安装 Python 3.8 或更高版本。
-- 安装并配置 MySQL 数据库。
-
-### 2. 依赖安装
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. 系统配置
-在根目录下创建 `.env` 文件并配置数据库连接（参考）：
-```text
-SECRET_KEY=your_secret_key
-DATABASE_URI=mysql+pymysql://username:password@localhost:3306/attendance_db
+2. 配置环境变量（在项目根目录创建 `.env`）
+
+```env
+SECRET_KEY=replace-with-a-strong-random-string
+DATABASE_URI=mysql+pymysql://username:password@localhost:3306/attendance_system
+CORS_ORIGINS=http://localhost:5000,http://127.0.0.1:5000
+FLASK_DEBUG=False
+HOST=0.0.0.0
+PORT=5000
 ```
 
-### 4. 初始化与启动
+3. 启动
+
 ```bash
-# 初始化数据库（系统会自动创建表结构）
 python app.py
 ```
+
 访问地址：`http://localhost:5000`
 
-## 系统演示账号
+## 安全说明
 
-- **系统管理员**: admin / admin123
-- **部门经理**: tech_manager / manager123
-- **普通员工**: zhangsan / employee123
+- 必须配置 `SECRET_KEY`，不要使用弱密钥。
+- 生产环境请设置 `FLASK_DEBUG=False`。
+- `CORS_ORIGINS` 仅填写可信前端域名，不要使用开放通配配置。
+- 导入、备份、恢复、删除接口属于高权限操作，建议只对管理员/经理开放并配合审计日志。
+- 备份文件包含敏感数据（含用户密码哈希），请妥善保存并限制访问权限。
 
-## 核心模块说明
+## 默认演示账号
 
-- `api/`: 业务逻辑控制层，包含数据导入、预警、统计等核心接口。
-- `models/`: 数据库模型定义，封装了员工、考勤、请假等实体关系。
-- `utils/`: 核心工具集，包含考勤计算算法引擎及邮件通知组件。
-- `templates/`: 响应式前端视图模板。
-- `docs/`: 包含系统级技术说明书及论文参考文档。
+系统初始化会创建演示账号（用于本地演示）：
 
-## 免责声明
+- `admin / admin123`
+- `tech_manager / manager123`
+- `zhangsan / employee123`
 
-本项目仅用于毕业设计及学术交流，严禁用于任何商业用途。
+首次部署后请立即修改默认密码，或在初始化逻辑中移除演示账号。
