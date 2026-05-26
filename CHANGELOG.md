@@ -56,3 +56,19 @@
 ### 文档变更
 
 - `README.md` 增加 `ENABLE_DEMO_DATA` 配置项和生产环境安全建议。
+
+## [2026-05-26] 生产可用补齐（三项）
+
+### 已完成
+
+- API 防护：
+  - 新增 `/api/csrf-token` 接口。
+  - 对所有 `POST/PUT/PATCH/DELETE /api/*` 请求增加 `X-CSRF-Token` 校验（可通过 `API_CSRF_PROTECT` 开关控制）。
+
+- 运维基线：
+  - 新增生产配置模板 `.env.production.example`。
+  - 新增部署清单 `docs/PRODUCTION_CHECKLIST.md`（HTTPS、最小权限、备份策略、日志轮转等）。
+
+- 回归测试：
+  - 新增 `tests/test_security_basics.py`（密码强度与文件路径安全）。
+  - 本地执行：`python -m unittest discover -s tests -p "test_*.py"`，通过。

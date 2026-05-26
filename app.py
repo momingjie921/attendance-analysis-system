@@ -5,6 +5,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, a
 from functools import wraps
 import os
 import logging
+import secrets
 from dotenv import load_dotenv
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from flask_caching import Cache
@@ -36,6 +37,7 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)  # 会话超时2�
 app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', str(not is_debug)).lower() == 'true'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['API_CSRF_PROTECT'] = os.getenv('API_CSRF_PROTECT', 'true').lower() == 'true'
 
 # CSRF配置：只对网页表单启用，对API禁用
 app.config['WTF_CSRF_CHECK_DEFAULT'] = False  # 禁用默认CSRF检查
@@ -80,6 +82,15 @@ def log_request_info():
 
     g.start_time = datetime.now()
     logging.info(f'[{request.remote_addr}] {request.method} {request.path} - User: {session.get("username", "Anonymous")}')
+
+    if request.path.startswith('/api/') and request.method in ['POST', 'PUT', 'PATCH', 'DELETE']:
+        if "username" not in session:
+            return jsonify({"code": 401, "msg": "未登录，请先登录"}), 401
+        if app.config['API_CSRF_PROTECT']:
+            expected_token = session.get('api_csrf_token')
+            actual_token = request.headers.get('X-CSRF-Token')
+            if not expected_token or expected_token != actual_token:
+                return jsonify({"code": 403, "msg": "CSRF token 无效"}), 403
 
 @app.after_request
 def log_response_info(response):
@@ -295,6 +306,7 @@ def login():
         session["name"] = emp_name
         session["emp_id"] = emp.emp_id
         session["last_activity"] = datetime.now().isoformat()
+        session["api_csrf_token"] = secrets.token_hex(32)
         session.permanent = True
 
         # 角色跳转
@@ -513,6 +525,17 @@ def employee_attendance_record():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.route("/api/csrf-token", methods=["GET"])
+def get_api_csrf_token():
+    if "username" not in session:
+        return jsonify({"code": 401, "msg": "未登录，请先登录"}), 401
+    token = session.get("api_csrf_token")
+    if not token:
+        token = secrets.token_hex(32)
+        session["api_csrf_token"] = token
+    return jsonify({"code": 200, "msg": "ok", "data": {"csrf_token": token}})
 
 
 @app.errorhandler(403)

@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from models import db, User, Employee, Department, Attendance, AbnormalAttendance, SystemConfig, Leave, HolidayCalendar
 from utils.decorators import api_role_required
 from utils.audit import audit_log
+from utils.file_security import build_safe_file_path
 
 backup_bp = Blueprint('backup_api', __name__)
 
@@ -17,18 +18,7 @@ def ensure_backup_dir():
         os.makedirs(BACKUP_DIR)
 
 def get_safe_backup_path(filename):
-    if not filename or filename != os.path.basename(filename):
-        raise ValueError('invalid filename')
-    if '..' in filename or filename.startswith('/') or filename.startswith('\\'):
-        raise ValueError('invalid filename')
-    if not filename.endswith('.json'):
-        raise ValueError('only .json is allowed')
-
-    backup_root = os.path.abspath(BACKUP_DIR)
-    file_path = os.path.abspath(os.path.join(BACKUP_DIR, filename))
-    if os.path.commonpath([backup_root, file_path]) != backup_root:
-        raise ValueError('invalid file path')
-    return file_path
+    return build_safe_file_path(BACKUP_DIR, filename, suffix=".json")
 
 def get_file_size(file_path):
     size_bytes = os.path.getsize(file_path)

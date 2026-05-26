@@ -55,6 +55,7 @@ python app.py
 - 生产环境请设置 `FLASK_DEBUG=False`。
 - `CORS_ORIGINS` 仅填写可信前端域名，不要使用开放通配配置。
 - 生产环境建议保持 `ENABLE_DEMO_DATA=false`，避免自动创建演示账号。
+- 建议保持 `API_CSRF_PROTECT=true`，并在前端对写操作附带 `X-CSRF-Token` 请求头（通过 `/api/csrf-token` 获取）。
 - 导入、备份、恢复、删除接口属于高权限操作，建议只对管理员/经理开放并配合审计日志。
 - 备份文件包含敏感数据（含用户密码哈希），请妥善保存并限制访问权限。
 
