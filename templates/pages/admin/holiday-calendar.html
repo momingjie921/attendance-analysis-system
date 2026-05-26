@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>节假日管理 - 考勤数据分析系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fontawesome/css/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}?v=2.0">
+    <style>
+        .card-header {
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #F3F4F6;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .card-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1A365D;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .filter-bar {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            align-items: flex-end;
+        }
+        .filter-bar .form-group {
+            margin-bottom: 0;
+            min-width: 180px;
+        }
+        .filter-bar .form-control {
+            height: 36px;
+            line-height: 36px;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+        @media (max-width: 1200px) {
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+        .textarea {
+            min-height: 140px;
+            resize: vertical;
+        }
+        .status-badge.with-icon {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .stack {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        .stack .card {
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fa-solid fa-clock"></i> 考勤管理系统</h2>
+        </div>
+        <ul class="sidebar-menu">
+            <li><a href="/admin/dashboard"><i class="fa-solid fa-tachometer-alt"></i> 数据总览</a></li>
+            <li><a href="/admin/attendance-warning"><i class="fa-solid fa-bell"></i> 考勤预警</a></li>
+            <li><a href="/admin/leave-approval"><i class="fa-solid fa-check-to-slot"></i> 请假审批</a></li>
+            <li><a href="/admin/data-import"><i class="fa-solid fa-file-excel"></i> 数据导入</a></li>
+            <li><a href="/admin/employee-management"><i class="fa-solid fa-users"></i> 员工管理</a></li>
+            <li><a href="/admin/department-management"><i class="fa-solid fa-building"></i> 部门管理</a></li>
+            <li><a href="/admin/rule-config"><i class="fa-solid fa-cog"></i> 规则配置</a></li>
+            <li><a href="/admin/holiday-calendar" class="active"><i class="fa-solid fa-calendar-days"></i> 节假日管理</a></li>
+            <li><a href="/admin/data-backup"><i class="fa-solid fa-database"></i> 数据备份</a></li>
+            <li><a href="/logout"><i class="fa-solid fa-sign-out-alt"></i> 退出登录</a></li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <div class="header">
+            <h1 class="header-title">节假日管理</h1>
+            <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name={{ name[0] }}&background=1A365D&color=fff&rounded=true&bold=true&font-size=0.6" alt="Avatar">
+                <span>{{ name }}（{{ session.role }}）</span>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="stack">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>新增/修改日期</h3>
+                    </div>
+                    <div class="filter-bar">
+                        <div class="form-group">
+                            <label class="required">日期</label>
+                            <input type="date" id="dateInput" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label class="required">类型</label>
+                            <div class="select-wrapper">
+                                <select id="typeInput" class="form-control" style="padding: 0px 16px">
+                                    <option value="holiday">节假日/休息日</option>
+                                    <option value="workday">工作日（调休上班）</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group" style="flex: 1; min-width: 240px;">
+                            <label>名称</label>
+                            <input type="text" id="nameInput" class="form-control" placeholder="例如：元旦/春节/调休上班">
+                        </div>
+                        <button class="btn btn-primary" id="saveBtn"><i class="fa-solid fa-floppy-disk"></i> 保存</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>批量导入</h3>
+                    </div>
+                    <div class="form-group">
+                        <label>每行一条：YYYY-MM-DD,节假日/工作日,名称（名称可省略）</label>
+                        <textarea id="bulkText" class="form-control textarea" placeholder="2026-01-01,节假日,元旦&#10;2026-02-18,工作日,调休上班"></textarea>
+                    </div>
+                    <div style="display:flex; gap: 10px;">
+                        <button class="btn btn-primary" id="bulkImportBtn"><i class="fa-solid fa-upload"></i> 批量导入</button>
+                        <button class="btn btn-secondary" id="bulkClearBtn"><i class="fa-solid fa-eraser"></i> 清空</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom: 0">
+                <div class="card-header">
+                    <h3>列表</h3>
+                </div>
+                <div class="filter-bar">
+                    <div class="form-group">
+                        <label>年份</label>
+                        <input type="number" id="yearInput" class="form-control" min="2000" max="2100">
+                    </div>
+                    <button class="btn btn-primary" id="loadBtn"><i class="fa-solid fa-rotate"></i> 加载</button>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>日期</th>
+                                <th>类型</th>
+                                <th>名称</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listBody">
+                            <tr><td colspan="4" style="text-align:center; padding: 24px; color:#9CA3AF;">正在加载...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+{% include 'includes/_modals.html' %}
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+<script>
+    let currentYear = new Date().getFullYear();
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('yearInput').value = currentYear;
+        loadList();
+        document.getElementById('listBody').addEventListener('click', handleListClick);
+
+        document.getElementById('loadBtn').addEventListener('click', () => {
+            const y = parseInt(document.getElementById('yearInput').value, 10);
+            if (!y) return;
+            currentYear = y;
+            loadList();
+        });
+
+        document.getElementById('saveBtn').addEventListener('click', saveOne);
+        document.getElementById('bulkImportBtn').addEventListener('click', bulkImport);
+        document.getElementById('bulkClearBtn').addEventListener('click', () => {
+            document.getElementById('bulkText').value = '';
+        });
+    });
+
+    function normalizeType(s) {
+        const v = (s || '').trim();
+        if (!v) return null;
+        if (v === 'holiday' || v === '节假日' || v === '休息日') return 0;
+        if (v === 'workday' || v === '工作日' || v === '调休上班') return 1;
+        return null;
+    }
+
+    function isValidDateStr(s) {
+        const v = (s || '').trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+        const [yy, mm, dd] = v.split('-').map(n => parseInt(n, 10));
+        if (!yy || !mm || !dd) return false;
+        const dt = new Date(`${v}T00:00:00`);
+        if (Number.isNaN(dt.getTime())) return false;
+        return dt.getFullYear() === yy && (dt.getMonth() + 1) === mm && dt.getDate() === dd;
+    }
+
+    async function loadList() {
+        const body = document.getElementById('listBody');
+        body.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 24px; color:#9CA3AF;">正在加载...</td></tr>';
+        try {
+            const res = await fetch(`/api/holidays?year=${currentYear}`);
+            const json = await res.json();
+            if (json.code !== 200) {
+                showModal(json.msg || '加载失败', 'error');
+                return;
+            }
+            renderList(json.data.items || []);
+        } catch (e) {
+            showModal('网络错误，请稍后重试', 'error');
+        }
+    }
+
+    function renderList(items) {
+        const body = document.getElementById('listBody');
+        if (!items || items.length === 0) {
+            body.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 24px; color:#9CA3AF;">暂无数据</td></tr>';
+            return;
+        }
+        body.innerHTML = items.map(it => {
+            const tag = it.is_workday === 1
+                ? '<span class="status-badge badge-success with-icon"><i class="fa-solid fa-briefcase"></i> 工作日</span>'
+                : '<span class="status-badge badge-danger with-icon"><i class="fa-solid fa-mug-saucer"></i> 节假日</span>';
+            const nameEnc = encodeURIComponent(it.name || '');
+            return `
+                <tr>
+                    <td>${it.date}</td>
+                    <td>${tag}</td>
+                    <td>${escapeHtml(it.name || '')}</td>
+                    <td>
+                        <div class="action-btn">
+                            <button class="edit-btn" data-action="edit" data-date="${it.date}" data-is-workday="${it.is_workday}" data-name="${nameEnc}"><i class="fa-solid fa-pen"></i> 编辑</button>
+                            <button class="delete-btn" data-action="delete" data-date="${it.date}"><i class="fa-solid fa-trash-can"></i> 删除</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function handleListClick(e) {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        const action = btn.dataset.action;
+        if (action === 'edit') {
+            const date = btn.dataset.date;
+            const isWorkday = parseInt(btn.dataset.isWorkday || '0', 10) === 1;
+            const name = decodeURIComponent(btn.dataset.name || '');
+            fillForm(date, isWorkday ? 1 : 0, name);
+            showModal('已载入到左侧表单，可直接修改后保存', 'success');
+            return;
+        }
+        if (action === 'delete') {
+            const date = btn.dataset.date;
+            showConfirmModal(`确定要删除 ${date} 这条节假日配置吗？`, function() {
+                doDelete(date);
+            });
+        }
+    }
+
+    function fillForm(date, isWorkday, name) {
+        document.getElementById('dateInput').value = date;
+        document.getElementById('typeInput').value = isWorkday === 1 ? 'workday' : 'holiday';
+        document.getElementById('nameInput').value = name || '';
+    }
+
+    async function saveOne() {
+        const date = document.getElementById('dateInput').value;
+        const type = document.getElementById('typeInput').value;
+        const name = document.getElementById('nameInput').value.trim();
+        if (!date) {
+            showModal('请选择日期', 'warning');
+            return;
+        }
+        const is_workday = type === 'workday' ? 1 : 0;
+        try {
+            const res = await fetch('/api/holidays', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date, is_workday, name })
+            });
+            const json = await res.json();
+            if (json.code === 200) {
+                showModal('保存成功', 'success');
+                loadList();
+            } else {
+                showModal(json.msg || '保存失败', 'error');
+            }
+        } catch (e) {
+            showModal('网络错误，请稍后重试', 'error');
+        }
+    }
+
+    async function doDelete(date) {
+        try {
+            const res = await fetch(`/api/holidays/${date}`, { method: 'DELETE' });
+            const json = await res.json();
+            if (json.code === 200) {
+                showModal('删除成功', 'success');
+                loadList();
+            } else {
+                showModal(json.msg || '删除失败', 'error');
+            }
+        } catch (e) {
+            showModal('网络错误，请稍后重试', 'error');
+        }
+    }
+
+    async function bulkImport() {
+        const text = document.getElementById('bulkText').value || '';
+        const lines = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+        if (lines.length === 0) {
+            showModal('没有可导入的数据', 'warning');
+            return;
+        }
+        const items = [];
+        const errors = [];
+        for (const line of lines) {
+            const parts = line.split(',').map(s => s.trim());
+            const date = parts[0];
+            const t = normalizeType(parts[1] || '');
+            const name = parts[2] || '';
+            if (!date) {
+                errors.push(`格式错误：${escapeHtml(line)}`);
+                continue;
+            }
+            if (!isValidDateStr(date)) {
+                errors.push(`日期无效：${escapeHtml(line)}`);
+                continue;
+            }
+            if (t === null) {
+                errors.push(`类型无效（需“节假日/休息日/工作日/调休上班”）：${escapeHtml(line)}`);
+                continue;
+            }
+            items.push({ date, is_workday: t, name });
+        }
+        if (items.length === 0 && errors.length > 0) {
+            const preview = errors.slice(0, 6).map(e => `<div style="margin-bottom:6px;">${e}</div>`).join('');
+            const more = errors.length > 6 ? `<div style="color:#6B7280; margin-top:6px;">其余 ${errors.length - 6} 行未展示</div>` : '';
+            showModal(`<div style="margin-bottom:10px;">发现 ${errors.length} 行格式/日期有问题，未导入任何数据：</div>${preview}${more}`, 'error');
+            return;
+        }
+        if (errors.length > 0) {
+            const preview = errors.slice(0, 6).map(e => `<div style="margin-bottom:6px;">${e}</div>`).join('');
+            const more = errors.length > 6 ? `<div style="color:#6B7280; margin-top:6px;">其余 ${errors.length - 6} 行未展示</div>` : '';
+            showConfirmModal(
+                `<div style="margin-bottom:10px;">发现 ${errors.length} 行有问题，将跳过这些行，仅导入其余 ${items.length} 行，是否继续？</div>${preview}${more}`,
+                function() { doBulkImport(items); }
+            );
+            return;
+        }
+        doBulkImport(items);
+    }
+
+    async function doBulkImport(items) {
+        if (!items || items.length === 0) {
+            showModal('没有可导入的数据', 'warning');
+            return;
+        }
+        try {
+            const res = await fetch('/api/holidays/bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items })
+            });
+            const json = await res.json();
+            if (json.code === 200) {
+                showModal(`导入成功：${json.data.success} 条`, 'success');
+                loadList();
+            } else {
+                showModal(json.msg || '导入失败', 'error');
+            }
+        } catch (e) {
+            showModal('网络错误，请稍后重试', 'error');
+        }
+    }
+
+    function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, s => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        })[s]);
+    }
+</script>
+</body>
+</html>

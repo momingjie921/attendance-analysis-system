@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>部门管理 - 考勤数据分析系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fontawesome/css/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}?v=2.0">
+</head>
+<body>
+<div class="layout">
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fa-solid fa-clock"></i> 考勤管理系统</h2>
+        </div>
+        <ul class="sidebar-menu">
+            <li><a href="/admin/dashboard">
+                <i class="fa-solid fa-tachometer-alt"></i> 数据总览
+            </a></li>
+            <li><a href="/admin/attendance-warning">
+                <i class="fa-solid fa-bell"></i> 考勤预警
+            </a></li>
+            <li><a href="/admin/leave-approval">
+                <i class="fa-solid fa-check-to-slot"></i> 请假审批
+            </a></li>
+            <li><a href="/admin/data-import">
+                <i class="fa-solid fa-file-excel"></i> 数据导入
+            </a></li>
+            <li><a href="/admin/employee-management">
+                <i class="fa-solid fa-users"></i> 员工管理
+            </a></li>
+            <li><a href="/admin/department-management" class="active">
+                <i class="fa-solid fa-building"></i> 部门管理
+            </a></li>
+            <li><a href="/admin/rule-config">
+                <i class="fa-solid fa-cog"></i> 规则配置
+            </a></li>
+            <li><a href="/admin/holiday-calendar">
+                <i class="fa-solid fa-calendar-days"></i> 节假日管理
+            </a></li>
+            <li><a href="/admin/data-backup">
+                <i class="fa-solid fa-database"></i> 数据备份
+            </a></li>
+            <li><a href="/logout">
+                <i class="fa-solid fa-sign-out-alt"></i> 退出登录
+            </a></li>
+        </ul>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <div class="header">
+            <h1 class="header-title">部门管理</h1>
+            <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name={{ name[0] }}&background=1A365D&color=fff&rounded=true&bold=true&font-size=0.6" alt="Avatar">
+                <span>{{ name }}（{{ session.role }}）</span>
+            </div>
+        </div>
+
+        <div class="search-bar">
+            <div class="search-input">
+                <i class="fa-solid fa-search"></i>
+                <input type="text" id="deptSearchInput" placeholder="搜索部门名称/部门编码/负责人">
+            </div>
+            <button class="btn btn-primary" id="addDeptBtn">
+                <i class="fa-solid fa-plus"></i> 新增部门
+            </button>
+        </div>
+
+        <!-- 部门列表 -->
+        <div class="table-card">
+            <table class="data-table" id="deptTable">
+                <thead>
+                <tr>
+                    <th>部门ID</th>
+                    <th>部门名称</th>
+                    <th>部门编码</th>
+                    <th>负责人</th>
+                    <th>上级部门</th>
+                    <th>员工数量</th>
+                    <th>状态</th>
+                    <th>创建时间</th>
+                    <th style="min-width: 240px;">操作</th>
+                </tr>
+                </thead>
+                <tbody id="deptTableBody">
+                <!-- 数据将通过JavaScript动态加载 -->
+                </tbody>
+            </table>
+
+            <!-- 分页 -->
+            <div id="paginationContainer" class="pagination" style="display: none;">
+                <!-- 分页将通过JS动态生成 -->
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- 新增/编辑部门模态框 -->
+<div class="modal-overlay" id="deptModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="modalTitle">新增部门</h3>
+            <i class="fa-solid fa-xmark modal-close" onclick="closeDeptModal()"></i>
+        </div>
+        <form id="deptForm">
+            <input type="hidden" id="deptId" value="">
+
+            <div class="form-group">
+                <label for="deptName" class="required">部门名称</label>
+                <input type="text" id="deptName" class="form-control" placeholder="请输入部门名称" required>
+            </div>
+
+            <div class="form-group">
+                <label for="deptCode" class="required">部门编码</label>
+                <input type="text" id="deptCode" class="form-control" placeholder="请输入部门编码" required>
+            </div>
+
+            <div class="form-group">
+                <label for="parentDeptId">上级部门</label>
+                <div class="select-wrapper">
+                    <select id="parentDeptId" class="form-control">
+                        <option value="">无上级部门</option>
+                        <!-- 上级部门选项将通过JavaScript动态加载 -->
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="managerId">部门负责人</label>
+                <div class="select-wrapper">
+                    <select id="managerId" class="form-control">
+                        <option value="">请选择负责人</option>
+                        <!-- 负责人选项将通过JavaScript动态加载 -->
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="deptStatus">部门状态</label>
+                <div class="select-wrapper">
+                    <select id="deptStatus" class="form-control">
+                        <option value="1">启用</option>
+                        <option value="0">禁用</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeDeptModal()">取消</button>
+                <button type="submit" class="btn btn-primary" id="saveBtn">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Include Shared Modals -->
+{% include 'includes/_modals.html' %}
+
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+<script>
+    // 全局变量
+    let currentPage = 1;
+    let totalPages = 1;
+    let totalItems = 0;
+    let searchKeyword = '';
+    let currentDeptId = null;
+    let parentDepts = [];
+    let managers = [];
+    let currentDepartments = []; // 存储当前页的部门数据
+    
+    // 状态切换暂存变量
+    let pendingStatusDeptId = null;
+    let pendingStatusValue = null;
+
+    // 编辑时的原始数据，用于检测是否修改
+    let originalDeptData = null;
+
+    // DOM加载完成后初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        try {
+            initPage();
+        } catch (error) {
+            console.error('Page initialization failed:', error);
+        }
+    });
+
+    // 初始化页面
+    function initPage() {
+        try {
+            // 立即显示加载状态
+            showLoading();
+
+            // 加载部门列表
+            loadDepartments();
+
+            // 加载上级部门选项
+            loadParentDepts();
+
+            // 加载负责人选项
+            loadManagers();
+
+            // 绑定事件监听器
+            bindEvents();
+        } catch (error) {
+            console.error('Initialization error:', error);
+            throw error;
+        }
+    }
+
+    // 绑定事件
+    function bindEvents() {
+        // 搜索框输入事件
+        const searchInput = document.getElementById('deptSearchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                searchKeyword = e.target.value.trim();
+                currentPage = 1;
+                loadDepartments();
+            });
+        }
+
+        // 新增部门按钮点击事件
+        const addBtn = document.getElementById('addDeptBtn');
+        if (addBtn) {
+            addBtn.addEventListener('click', openAddModal);
+        }
+
+        // 表单提交事件
+        const deptForm = document.getElementById('deptForm');
+        if (deptForm) {
+            deptForm.removeEventListener('submit', handleSaveDept); // 移除可能的重复绑定
+            deptForm.addEventListener('submit', handleSaveDept);
+        }
+        
+        // 点击模态框外部关闭
+        document.getElementById('deptModal').addEventListener('click', function(e) {
+            if (e.target === this) closeDeptModal();
+        });
+    }
+
+    // 加载部门列表
+    async function loadDepartments() {
+        showLoading();
+
+        try {
+            // 构建查询参数
+            const params = new URLSearchParams({
+                page: currentPage,
+                per_page: 10,
+                search: searchKeyword
+            });
+
+            const url = `/api/departments/list?${params}`;
+
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                },
+                credentials: 'same-origin'
+            });
+
+            const result = await response.json();
+
+            if (result.code === 200) {
+                currentDepartments = result.data.departments || []; // 更新全局数据
+                renderDepartments(result.data);
+                updatePagination(result.data);
+            } else {
+                console.error('API Error:', result.msg);
+                showModal('加载部门列表失败: ' + result.msg, 'error');
+                showEmptyState();
+            }
+        } catch (error) {
+            console.error('Network Error:', error);
+            showModal('网络错误: ' + error.message, 'error');
+            showEmptyState();
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // 渲染部门列表
+    function renderDepartments(data) {
+        const tableBody = document.getElementById('deptTableBody');
+        
+        // 渲染前清空表格内容
+        tableBody.innerHTML = '';
+
+        if (!data.departments || data.departments.length === 0) {
+            showEmptyState();
+            return;
+        }
+
+        // 隐藏空状态，确保显示表格
+        // hideEmptyState(); // 不需要了，已经通过 tableBody.innerHTML = '' 清空了
+
+        data.departments.forEach((dept, index) => {
+            const row = document.createElement('tr');
+            
+            // 转义部门名称，防止单引号破坏HTML属性
+            const safeDeptName = (dept.dept_name || '').replace(/'/g, "\\'");
+
+            row.innerHTML = `
+                <td>${dept.dept_id}</td>
+                <td>${dept.dept_name}</td>
+                <td>${dept.dept_code}</td>
+                <td>${dept.manager_name || '未设置'}</td>
+                <td>${dept.parent_dept_name || '无'}</td>
+                <td>${dept.emp_count}</td>
+                <td>
+                    <span class="status-badge ${dept.status === 1 ? 'status-active' : 'status-inactive'}">
+                        ${dept.status === 1 ? '启用' : '禁用'}
+                    </span>
+                </td>
+                <td>${dept.create_time}</td>
+                <td class="action-btn">
+                    <button class="edit-btn" onclick="openEditModal(${dept.dept_id})">
+                        <i class="fa-solid fa-pen"></i> 编辑
+                    </button>
+                    
+                    ${dept.status === 1 ?
+                        `<button class="delete-btn" onclick="toggleDeptStatus(${dept.dept_id}, '${safeDeptName}', 0)" title="禁用部门" style="background-color: #FEE2E2; color: #EF4444;">
+                            <i class="fa-solid fa-ban"></i> 禁用
+                        </button>`
+                        :
+                        `<button class="restore-btn" onclick="toggleDeptStatus(${dept.dept_id}, '${safeDeptName}', 1)" title="启用部门" style="background-color: #D1FAE5; color: #059669;">
+                            <i class="fa-solid fa-check"></i> 启用
+                        </button>`
+                    }
+
+                    <button class="delete-btn" onclick="openDeleteModal(${dept.dept_id}, '${safeDeptName}')" style="background-color: #DC2626; color: #FFFFFF;">
+                        <i class="fa-solid fa-trash-can"></i> 永久删除
+                    </button>
+                </td>
+            `;
+
+            tableBody.appendChild(row);
+        });
+    }
+
+    // 更新分页信息
+    function updatePagination(data) {
+        const paginationContainer = document.getElementById('paginationContainer');
+
+        totalPages = data.pages;
+        totalItems = data.total;
+        currentPage = data.page;
+
+        // 如果没有数据，隐藏分页
+        if (!data.departments || data.departments.length === 0 || totalPages <= 1) {
+            paginationContainer.style.display = 'none';
+            return;
+        }
+
+        paginationContainer.style.display = 'flex';
+        
+        // 计算页码范围
+        let startPage = Math.max(1, currentPage - 2);
+        let endPage = Math.min(totalPages, currentPage + 2);
+
+        if (endPage - startPage < 4) {
+            if (startPage === 1) {
+                endPage = Math.min(5, totalPages);
+            } else if (endPage === totalPages) {
+                startPage = Math.max(1, totalPages - 4);
+            }
+        }
+
+        let html = `
+            <button class="pagination-btn" onclick="changePage(1)" ${currentPage === 1 ? 'disabled' : ''} title="第一页">
+                <i class="fa-solid fa-angles-left"></i>
+            </button>
+            <button class="pagination-btn" onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} title="上一页">
+                <i class="fa-solid fa-chevron-left"></i>
+            </button>
+        `;
+
+        // 页码按钮
+        for (let i = startPage; i <= endPage; i++) {
+            html += `
+                <button class="pagination-btn ${i === currentPage ? 'active' : ''}" 
+                        onclick="changePage(${i})">
+                    ${i}
+                </button>
+            `;
+        }
+
+        html += `
+            <button class="pagination-btn" onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} title="下一页">
+                <i class="fa-solid fa-chevron-right"></i>
+            </button>
+            <button class="pagination-btn" onclick="changePage(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''} title="最后一页">
+                <i class="fa-solid fa-angles-right"></i>
+            </button>
+            <span class="pagination-info">
+                第 ${currentPage} / ${totalPages} 页，共 ${totalItems} 条
+            </span>
+        `;
+
+        paginationContainer.innerHTML = html;
+    }
+
+    // 切换页码
+    function changePage(page) {
+        if (page < 1 || page > totalPages) return;
+        currentPage = page;
+        loadDepartments();
+    }
+
+    // 加载上级部门选项
+    async function loadParentDepts() {
+        try {
+            const response = await fetch('/api/departments/list?per_page=100', {
+                credentials: 'same-origin',
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            const result = await response.json();
+
+            if (result.code === 200) {
+                parentDepts = result.data.departments;
+            }
+        } catch (error) {
+            console.error('加载上级部门失败:', error);
+        }
+    }
+
+    // 加载负责人选项
+    async function loadManagers() {
+        try {
+            const response = await fetch('/api/employees/departments', {
+                credentials: 'same-origin',
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            const result = await response.json();
+
+            if (result.code === 200) {
+                managers = result.data.departments;
+            }
+        } catch (error) {
+            console.error('加载负责人失败:', error);
+        }
+    }
+
+    // 打开新增部门模态框
+    function openAddModal() {
+        document.getElementById('modalTitle').textContent = '新增部门';
+        document.getElementById('deptId').value = '';
+        document.getElementById('deptForm').reset();
+
+        // 清空上级部门选项
+        const parentSelect = document.getElementById('parentDeptId');
+        parentSelect.innerHTML = '<option value="">无上级部门</option>';
+
+        // 添加上级部门选项
+        parentDepts.forEach(dept => {
+            if (dept.status === 1) {
+                const option = document.createElement('option');
+                option.value = dept.dept_id;
+                option.textContent = `${dept.dept_name} (${dept.dept_code})`;
+                parentSelect.appendChild(option);
+            }
+        });
+
+        // 清空负责人选项
+        const managerSelect = document.getElementById('managerId');
+        managerSelect.innerHTML = '<option value="">请选择负责人</option>';
+
+        // 加载员工数据
+        fetch('/api/employees/list?per_page=100', {credentials: 'same-origin'})
+            .then(response => response.json())
+            .then(result => {
+                if (result.code === 200 && result.data.items) {
+                    result.data.items.forEach(emp => {
+                        if (emp.status === 1) {
+                            const option = document.createElement('option');
+                            option.value = emp.emp_id;
+                            option.textContent = `${emp.emp_name} (${emp.emp_code})`;
+                            managerSelect.appendChild(option);
+                        }
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('加载负责人选项失败:', error);
+            });
+
+        // 显示模态框
+        document.getElementById('deptModal').style.display = 'flex';
+    }
+
+    // 打开编辑部门模态框
+    function openEditModal(deptId) {
+        try {
+            // 从本地缓存获取部门数据，避免重新请求
+            const dept = currentDepartments.find(d => d.dept_id === deptId);
+
+            if (!dept) {
+                showModal('部门数据未找到，请尝试刷新页面', 'error');
+                return;
+            }
+
+            // 设置表单标题
+            document.getElementById('modalTitle').textContent = '编辑部门';
+            document.getElementById('deptId').value = dept.dept_id;
+
+            // 填充表单数据
+            document.getElementById('deptName').value = dept.dept_name;
+            document.getElementById('deptCode').value = dept.dept_code;
+            document.getElementById('deptStatus').value = dept.status.toString();
+
+            // 保存原始数据用于对比
+            originalDeptData = {
+                dept_name: dept.dept_name,
+                dept_code: dept.dept_code,
+                status: dept.status,
+                parent_dept_id: dept.parent_dept_id,
+                manager_id: dept.manager_id
+            };
+
+            // 设置上级部门选项（排除自身和其子部门）
+            const parentSelect = document.getElementById('parentDeptId');
+            parentSelect.innerHTML = '<option value="">无上级部门</option>';
+            
+            parentDepts.forEach(d => {
+                if (d.status === 1 && d.dept_id !== deptId) {
+                    const option = document.createElement('option');
+                    option.value = d.dept_id;
+                    option.textContent = `${d.dept_name} (${d.dept_code})`;
+                    option.selected = d.dept_id === dept.parent_dept_id;
+                    parentSelect.appendChild(option);
+                }
+            });
+
+            // 设置负责人
+            const managerSelect = document.getElementById('managerId');
+            managerSelect.innerHTML = '<option value="">请选择负责人</option>';
+
+            // 加载员工选项
+            fetch('/api/employees/list?per_page=100')
+                .then(response => response.json())
+                .then(empResult => {
+                    if (empResult.code === 200 && empResult.data.items) {
+                        empResult.data.items.forEach(emp => {
+                            if (emp.status === 1) {
+                                const option = document.createElement('option');
+                                option.value = emp.emp_id;
+                                option.textContent = `${emp.emp_name} (${emp.emp_code})`;
+                                option.selected = emp.emp_id === dept.manager_id;
+                                managerSelect.appendChild(option);
+                            }
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('加载负责人选项失败:', error);
+                });
+
+            // 显示模态框
+            document.getElementById('deptModal').style.display = 'flex';
+
+        } catch (error) {
+            showModal('打开编辑窗口失败: ' + error.message, 'error');
+        }
+    }
+
+    // 处理保存部门
+    async function handleSaveDept(event) {
+        event.preventDefault();
+
+        // 验证表单
+        if (!validateForm()) {
+            return;
+        }
+
+        const deptId = document.getElementById('deptId').value;
+        const isEdit = !!deptId;
+
+        const data = {
+            dept_name: document.getElementById('deptName').value.trim(),
+            dept_code: document.getElementById('deptCode').value.trim(),
+            parent_dept_id: document.getElementById('parentDeptId').value || null,
+            manager_id: document.getElementById('managerId').value || null,
+            status: parseInt(document.getElementById('deptStatus').value)
+        };
+
+        if (isEdit) {
+            // 检查数据是否发生变化
+            const currentParentId = data.parent_dept_id ? String(data.parent_dept_id) : '';
+            const originalParentId = originalDeptData.parent_dept_id ? String(originalDeptData.parent_dept_id) : '';
+            
+            const currentManagerId = data.manager_id ? String(data.manager_id) : '';
+            const originalManagerId = originalDeptData.manager_id ? String(originalDeptData.manager_id) : '';
+
+            const hasChanged = 
+                data.dept_name !== originalDeptData.dept_name ||
+                data.dept_code !== originalDeptData.dept_code ||
+                data.status !== originalDeptData.status ||
+                currentParentId !== originalParentId ||
+                currentManagerId !== originalManagerId;
+
+            if (!hasChanged) {
+                showModal('未修改任何内容', 'warning');
+                return;
+            }
+
+            data.dept_id = deptId;
+        }
+
+        try {
+            const response = await fetch(isEdit ? '/api/departments/update' : '/api/departments/create', {
+                method: isEdit ? 'PUT' : 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                try {
+                    const result = JSON.parse(text);
+                    showModal((isEdit ? '更新' : '创建') + '部门失败: ' + (result.msg || response.statusText), 'error');
+                } catch (e) {
+                    showModal((isEdit ? '更新' : '创建') + '部门失败 (服务器错误): ' + response.status + ' ' + response.statusText, 'error');
+                }
+                return;
+            }
+
+            const result = await response.json();
+
+            if (result.code === 200) {
+                showModal(result.msg, 'success');
+                closeDeptModal();
+                loadDepartments();
+            } else {
+                showModal((isEdit ? '更新' : '创建') + '部门失败: ' + result.msg, 'error');
+            }
+        } catch (error) {
+            console.error('Save department error:', error);
+            showModal('网络错误: ' + error.message, 'error');
+        }
+    }
+
+    // 表单验证
+    function validateForm() {
+        let isValid = true;
+
+        // 验证部门名称
+        const deptName = document.getElementById('deptName').value.trim();
+        const nameRegex = /^[\u4e00-\u9fa5a-zA-Z]+$/;
+
+        if (!deptName) {
+            document.getElementById('deptName').classList.add('error');
+            isValid = false;
+        } else if (!nameRegex.test(deptName)) {
+            showModal('部门名称只能包含中文和英文', 'error');
+            document.getElementById('deptName').classList.add('error');
+            isValid = false;
+        } else {
+            document.getElementById('deptName').classList.remove('error');
+        }
+
+        // 验证部门编码
+        const deptCode = document.getElementById('deptCode').value.trim();
+        const codeRegex = /^[a-zA-Z0-9]+$/;
+
+        if (!deptCode) {
+            document.getElementById('deptCode').classList.add('error');
+            isValid = false;
+        } else if (!codeRegex.test(deptCode)) {
+            showModal('部门编码只能包含字母和数字', 'error');
+            document.getElementById('deptCode').classList.add('error');
+            isValid = false;
+        } else {
+            document.getElementById('deptCode').classList.remove('error');
+        }
+
+        return isValid;
+    }
+
+    // 打开删除确认模态框
+    function openDeleteModal(deptId, deptName) {
+        currentDeptId = deptId;
+        const message = `
+            <p style="color: #111827">确定要永久删除部门 "<span style="font-weight: 600;">${deptName}</span>" 吗？</p>
+            <p style="margin-top: 8px;">删除前请确保该部门下没有子部门或员工。</p>
+            <p style="color: #DC2626; font-weight: bold; margin-top: 8px;">此操作不可恢复！</p>
+        `;
+        
+        showConfirmModal(message, confirmDelete, null, {
+            confirmText: '永久删除',
+            confirmType: 'danger'
+        });
+    }
+
+    // 确认删除
+    async function confirmDelete() {
+        if (!currentDeptId) return;
+
+        try {
+            const response = await fetch('/api/departments/permanent-delete', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ dept_id: currentDeptId })
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                try {
+                    const result = JSON.parse(text);
+                    showModal('删除部门失败: ' + (result.msg || response.statusText), 'error');
+                } catch (e) {
+                    showModal('删除部门失败 (服务器错误): ' + response.status + ' ' + response.statusText, 'error');
+                }
+                return;
+            }
+
+            const result = await response.json();
+
+            if (result.code === 200) {
+                showModal(result.msg, 'success');
+                loadDepartments();
+            } else {
+                showModal('删除部门失败，' + result.msg, 'error');
+            }
+        } catch (error) {
+            showModal('网络错误: ' + error.message, 'error');
+        } finally {
+            currentDeptId = null;
+        }
+    }
+
+    // 切换部门状态
+    function toggleDeptStatus(deptId, deptName, status) {
+        pendingStatusDeptId = deptId;
+        pendingStatusValue = status;
+        
+        const action = status === 1 ? '启用' : '禁用';
+        const message = `确定要${action}部门 "<span style="font-weight: 600;">${deptName}</span>" 吗？`;
+        
+        const confirmType = status === 0 ? 'danger' : 'primary';
+        const confirmText = status === 0 ? '禁用' : '启用';
+        
+        showConfirmModal(message, confirmStatusChange, () => {
+            pendingStatusDeptId = null;
+            pendingStatusValue = null;
+        }, {
+            confirmText: confirmText,
+            confirmType: confirmType
+        });
+    }
+
+    // 确认状态切换
+    async function confirmStatusChange() {
+        if (!pendingStatusDeptId) return;
+
+        try {
+            const response = await fetch('/api/departments/toggle-status', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    dept_id: pendingStatusDeptId,
+                    status: pendingStatusValue
+                })
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                try {
+                    const result = JSON.parse(text);
+                    showModal('操作失败: ' + (result.msg || response.statusText), 'error');
+                } catch (e) {
+                    showModal('操作失败 (服务器错误): ' + response.status + ' ' + response.statusText, 'error');
+                }
+                return;
+            }
+
+            const result = await response.json();
+
+            if (result.code === 200) {
+                showModal(result.msg, 'success');
+                loadDepartments();
+            } else {
+                showModal(`操作失败：${result.msg}`, 'error');
+            }
+        } catch (error) {
+            showModal('网络错误: ' + error.message, 'error');
+        } finally {
+            pendingStatusDeptId = null;
+            pendingStatusValue = null;
+        }
+    }
+
+    // 关闭新增/编辑模态框
+    function closeDeptModal() {
+        document.getElementById('deptModal').style.display = 'none';
+        document.getElementById('deptForm').reset();
+    }
+
+    // 显示加载状态
+    function showLoading() {
+        const tableBody = document.getElementById('deptTableBody');
+        tableBody.innerHTML = `
+            <tr class="loading-row">
+                <td colspan="9" class="loading" style="text-align: center; padding: 40px 0;">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <div>正在加载部门数据...</div>
+                </td>
+            </tr>
+        `;
+        document.getElementById('paginationContainer').style.display = 'none';
+    }
+
+    // 隐藏加载状态
+    function hideLoading() {
+        // 不需要操作 DOM，由 renderDepartments 负责渲染数据
+    }
+
+    // 显示空状态
+    function showEmptyState() {
+        const tableBody = document.getElementById('deptTableBody');
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="9" style="text-align: center; padding: 60px 0; color: #9CA3AF;">
+                    <i class="fa-solid fa-building-circle-xmark" style="font-size: 48px; margin-bottom: 16px; color: #D1D5DB;"></i>
+                    <div style="font-size: 14px;">暂无部门数据</div>
+                </td>
+            </tr>
+        `;
+        document.getElementById('paginationContainer').style.display = 'none';
+    }
+
+    // 隐藏空状态
+    function hideEmptyState() {
+        // 不需要操作 DOM，由 renderDepartments 负责渲染数据
+    }
+</script>
+</body>
+</html>

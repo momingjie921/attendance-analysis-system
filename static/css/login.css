@@ -1,0 +1,113 @@
+/* Login Page Specific Styles */
+
+body {
+    background: linear-gradient(135deg, #F0F5FF 0%, #F9FAFB 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 16px;
+}
+
+.login-container {
+    background: #FFFFFF;
+    border-radius: 12px;
+    padding: 32px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 8px 30px rgba(26, 54, 93, 0.06);
+}
+
+.login-header {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.login-header h1 {
+    color: #1A365D;
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.login-header p {
+    color: #6B7280;
+    font-size: 14px;
+}
+
+.form-control-icon {
+    position: relative;
+}
+
+.form-control-icon i {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6B7280;
+    width: 16px;
+    text-align: center;
+}
+
+/* Override common.css form-control padding for icon */
+.form-control-icon .form-control {
+    padding-left: 40px;
+}
+
+.btn-login {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    background-color: #1A365D;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.btn-login:hover {
+    background-color: #2C4A78;
+}
+
+.btn-login:disabled {
+    background-color: #9CA3AF;
+    cursor: not-allowed;
+}
+
+.error-tip {
+    color: #EF4444;
+    font-size: 12px;
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.footer-text {
+    text-align: center;
+    margin-top: 24px;
+    color: #6B7280;
+    font-size: 12px;
+}
+
+@media (max-width: 480px) {
+    .login-container {
+        padding: 24px 16px;
+    }
+
+    .login-header h1 {
+        font-size: 20px;
+    }
+
+    .form-control-icon .form-control {
+        padding-left: 36px;
+    }
+
+    .form-control-icon i {
+        left: 12px;
+    }
+}

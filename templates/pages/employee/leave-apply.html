@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>请假申请 - 考勤数据分析系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fontawesome/css/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}?v=2.0">
+    <style>
+        .balance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .balance-card {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 24px; /* 对齐系统标准 padding */
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .balance-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        .balance-card .label { 
+            font-size: 13px; 
+            color: #6B7280; 
+            margin-bottom: 8px; 
+            font-weight: 500;
+        }
+        .balance-card .value { 
+            font-size: 28px; /* 对齐 dashboard 数值大小 */
+            font-weight: 600; 
+            color: #1A365D; 
+        }
+        .balance-card.highlight .value { 
+            color: #3B82F6; 
+        }
+        .balance-card.warning .value { 
+            color: #F59E0B; /* 使用系统标准警告色 */
+        }
+        
+        .form-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 24px; /* 增加左右内边距，防止贴边 */
+        }
+        
+        .layout-split {
+            display: grid;
+            grid-template-columns: 3fr 7fr; /* 使用 fr 单位确保总宽度为 100% */
+            gap: 24px;
+            align-items: start;
+        }
+        
+        .form-grid-stacked {
+            display: flex;
+            flex-direction: column;
+            gap: 12.5px; /* 进一步增加间距，避免卡片显得太矮 */
+        }
+        
+        .form-grid-stacked .form-group {
+            margin-bottom: 0;
+        }
+        
+        .form-grid-stacked .form-control {
+            padding: 12px 14px; /* 增加输入框垂直内边距 */
+        }
+        
+        .card-header {
+            margin-bottom: 20px; /* 增加头部边距 */
+            padding-bottom: 12px;
+            border-bottom: 1px solid #F3F4F6;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .card-header h3 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1A365D;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 状态标签样式 */
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-pending { background-color: #FEF3C7; color: #D97706; }
+        .status-approved { background-color: #D1FAE5; color: #059669; }
+        .status-rejected { background-color: #FEE2E2; color: #EF4444; }
+
+        /* 响应式适配 */
+        @media (max-width: 1200px) {
+            .layout-split {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .required::after {
+            content: " *";
+            color: #EF4444;
+            margin-left: 4px;
+        }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fa-solid fa-clock"></i> 考勤管理系统</h2>
+        </div>
+        <ul class="sidebar-menu">
+            {% if session.role == 'manager' %}
+            <li><a href="/manager/dashboard"><i class="fa-solid fa-tachometer-alt"></i> 部门数据</a></li>
+            <li><a href="/manager/leave-approval"><i class="fa-solid fa-check-to-slot"></i> 请假审批</a></li>
+            <li><a href="/employee/leave-apply" class="active"><i class="fa-solid fa-paper-plane"></i> 请假申请</a></li>
+            <li><a href="/manager/data-import"><i class="fa-solid fa-file-excel"></i> 数据导入</a></li>
+            <li><a href="/manager/departmental-analysis"><i class="fa-solid fa-chart-bar"></i> 部门分析</a></li>
+            <li><a href="/manager/departmental-abnormal"><i class="fa-solid fa-exclamation-triangle"></i> 部门异常</a></li>
+            <li><a href="/employee/dashboard"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+            <li><a href="/employee/attendance-record"><i class="fa-solid fa-calendar-check"></i> 打卡记录</a></li>
+            <li><a href="/employee/abnormal-record"><i class="fa-solid fa-exclamation-circle"></i> 异常记录</a></li>
+            {% elif session.role == 'admin' %}
+            <li><a href="/admin/dashboard"><i class="fa-solid fa-tachometer-alt"></i> 数据总览</a></li>
+            <li><a href="/admin/leave-approval"><i class="fa-solid fa-check-to-slot"></i> 请假审批</a></li>
+            <li><a href="/employee/leave-apply" class="active"><i class="fa-solid fa-paper-plane"></i> 请假申请</a></li>
+            <li><a href="/employee/dashboard"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+            {% else %}
+            <li><a href="/employee/dashboard"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+            <li><a href="/employee/attendance-record"><i class="fa-solid fa-calendar-check"></i> 打卡记录</a></li>
+            <li><a href="/employee/abnormal-record"><i class="fa-solid fa-exclamation-circle"></i> 异常记录</a></li>
+            <li><a href="/employee/leave-apply" class="active"><i class="fa-solid fa-calendar-plus"></i> 请假申请</a></li>
+            {% endif %}
+            <li><a href="/logout"><i class="fa-solid fa-sign-out-alt"></i> 退出登录</a></li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <div class="header">
+            <h1 class="header-title">请假申请</h1>
+            <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name={{ name[0] }}&background=1A365D&color=fff&rounded=true&bold=true&font-size=0.6" alt="Avatar">
+                <span>{{ name }}（{{ session.role }}）</span>
+            </div>
+        </div>
+
+        <div class="form-container">
+            <div class="balance-grid">
+                <div class="balance-card highlight">
+                    <div class="label">年度剩余年假</div>
+                    <div class="value" id="annual-balance">-</div>
+                </div>
+                <div class="balance-card highlight">
+                    <div class="label">本月剩余病假</div>
+                    <div class="value" id="sick-balance">-</div>
+                </div>
+                <div class="balance-card warning">
+                    <div class="label">需提前通知时长</div>
+                    <div class="value" id="notice-limit">-</div>
+                </div>
+            </div>
+
+            <div class="layout-split">
+                <!-- 左侧：填写申请信息 (30%) -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fa-solid fa-file-signature"></i> 填写申请</h3>
+                        <div style="font-size: 12px; color: #6B7280;">带 <span style="color: #EF4444;">*</span> 必填</div>
+                    </div>
+                    <form id="leaveForm">
+                        <div class="form-grid-stacked">
+                            <div class="form-group">
+                                <label class="required">请假类型</label>
+                                <div class="select-wrapper">
+                                    <select id="leave_type" class="form-control" required>
+                                        <option value="annual">带薪年假</option>
+                                        <option value="sick">带薪病假</option>
+                                        <option value="personal">事假</option>
+                                        <option value="maternity">产假/陪产假</option>
+                                        <option value="other">其他</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="required">请假天数</label>
+                                <input type="number" id="leave_days" class="form-control" step="0.5" min="0.5" placeholder="例如：1.0" required>
+                                <div class="form-tip">最小单位 0.5 天</div>
+                            </div>
+                            <div class="form-group" id="half-day-group" style="display: none;">
+                                <label class="required">半天时段</label>
+                                <div class="select-wrapper">
+                                    <select id="half_day" class="form-control">
+                                        <option value="AM">上午</option>
+                                        <option value="PM">下午</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="required">开始日期</label>
+                                <input type="date" id="start_date" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="required">结束日期</label>
+                                <input type="date" id="end_date" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label>原因/备注</label>
+                                <textarea id="remark" class="form-control" rows="4" placeholder="请输入请假原因..."></textarea>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 12px; display: flex; gap: 12px;">
+                            <button type="submit" class="btn btn-primary" id="submitBtn" style="flex: 1; padding: 12px;">
+                                <i class="fa-solid fa-paper-plane"></i> 提交申请
+                            </button>
+                            <button type="reset" class="btn btn-secondary" style="flex: 1; padding: 12px; font-size: 13px;">
+                                <i class="fa-solid fa-rotate-left"></i> 重置
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 右侧：我的申请记录 (70%) -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fa-solid fa-clock-rotate-left"></i> 我的申请记录</h3>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>类型</th>
+                                    <th>日期</th>
+                                    <th>天数</th>
+                                    <th>状态</th>
+                                    <th>备注</th>
+                                    <th>提交时间</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-list-body">
+                                <tr><td colspan="6" style="text-align: center; padding: 30px; color: #9CA3AF;">正在加载记录...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- 分页 (新) -->
+                    <div class="pagination" id="paginationContainer" style="margin-top: 16px;">
+                        <!-- 分页将通过JS动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+{% include 'includes/_modals.html' %}
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+<script>
+    const typeMap = {
+        'annual': '带薪年假',
+        'sick': '带薪病假',
+        'personal': '事假',
+        'maternity': '产假/陪产假',
+        'other': '其他'
+    };
+
+    const statusMap = {
+        'pending': { text: '待审批', class: 'status-pending' },
+        'approved': { text: '已批准', class: 'status-approved' },
+        'rejected': { text: '已驳回', class: 'status-rejected' }
+    };
+
+    // 分页变量 (新)
+    let allHistory = [];
+    let currentPage = 1;
+    const perPage = 10;
+    let totalPages = 1;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadBalance();
+        loadHistory();
+
+        const leaveDaysEl = document.getElementById('leave_days');
+        const startEl = document.getElementById('start_date');
+        const endEl = document.getElementById('end_date');
+        leaveDaysEl.addEventListener('input', updateHalfDayUI);
+        startEl.addEventListener('change', updateHalfDayUI);
+        endEl.addEventListener('change', updateHalfDayUI);
+        updateHalfDayUI();
+        
+        // 提交表单
+        document.getElementById('leaveForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            submitLeave();
+        });
+    });
+
+    function loadBalance() {
+        fetch('/api/leave/balance')
+            .then(res => res.json())
+            .then(res => {
+                if (res.code === 200) {
+                    document.getElementById('annual-balance').textContent = res.data.annual.remaining + ' 天';
+                    document.getElementById('sick-balance').textContent = res.data.sick.remaining + ' 天';
+                    document.getElementById('notice-limit').textContent = res.data.notice_hours + ' 小时';
+                }
+            });
+    }
+
+    function loadHistory() {
+        fetch('/api/leave/my-history')
+            .then(res => res.json())
+            .then(res => {
+                if (res.code === 200) {
+                    allHistory = res.data;
+                    updatePaginationData();
+                }
+            });
+    }
+
+    function updatePaginationData() {
+        totalPages = Math.ceil(allHistory.length / perPage) || 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+        
+        const start = (currentPage - 1) * perPage;
+        const end = start + perPage;
+        const pageData = allHistory.slice(start, end);
+        
+        renderHistory(pageData);
+        renderPagination();
+    }
+
+    function renderHistory(list) {
+        const body = document.getElementById('history-list-body');
+        if (!list || list.length === 0) {
+            body.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 30px; color: #9CA3AF;">暂无申请记录</td></tr>';
+            return;
+        }
+
+        body.innerHTML = list.map(item => {
+            const status = statusMap[item.approval_status] || { text: item.approval_status, class: '' };
+            const halfText = item.half_day === 'AM' ? '上午' : (item.half_day === 'PM' ? '下午' : '');
+            const dateText = (item.leave_days == 0.5 && item.start_date === item.end_date && halfText)
+                ? `${item.start_date}（${halfText}）`
+                : `${item.start_date} 至 ${item.end_date}`;
+            return `
+                <tr>
+                    <td>${typeMap[item.leave_type] || item.leave_type}</td>
+                    <td style="font-size: 13px;">${dateText}</td>
+                    <td><b>${item.leave_days}</b> 天</td>
+                    <td><span class="status-badge ${status.class}">${status.text}</span></td>
+                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${((item.remark || '') + (item.approval_remark ? (' / 审批：' + item.approval_remark) : ''))}">${(item.remark || '-') + (item.approval_remark ? (' / 审批：' + item.approval_remark) : '')}</td>
+                    <td style="font-size: 12px; color: #6B7280;">${item.create_time}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function updateHalfDayUI() {
+        const days = parseFloat(document.getElementById('leave_days').value);
+        const start = document.getElementById('start_date').value;
+        const end = document.getElementById('end_date').value;
+        const group = document.getElementById('half-day-group');
+        const select = document.getElementById('half_day');
+        const isHalf = days === 0.5;
+        group.style.display = isHalf ? '' : 'none';
+        select.required = isHalf;
+        if (isHalf && start && end && start !== end) {
+            document.getElementById('end_date').value = start;
+        }
+    }
+
+    function renderPagination() {
+        const container = document.getElementById('paginationContainer');
+        if (totalPages <= 1) {
+            container.innerHTML = '';
+            return;
+        }
+
+        let startPage = Math.max(1, currentPage - 2);
+        let endPage = Math.min(totalPages, currentPage + 2);
+
+        if (endPage - startPage < 4) {
+            if (startPage === 1) endPage = Math.min(5, totalPages);
+            else if (endPage === totalPages) startPage = Math.max(1, totalPages - 4);
+        }
+
+        let html = `
+            <button class="pagination-btn" onclick="changePage(1)" ${currentPage === 1 ? 'disabled' : ''}>
+                <i class="fa-solid fa-angles-left"></i>
+            </button>
+            <button class="pagination-btn" onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>
+                <i class="fa-solid fa-chevron-left"></i>
+            </button>
+        `;
+
+        for (let i = startPage; i <= endPage; i++) {
+            html += `
+                <button class="pagination-btn ${i === currentPage ? 'active' : ''}" onclick="changePage(${i})">
+                    ${i}
+                </button>
+            `;
+        }
+
+        html += `
+            <button class="pagination-btn" onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>
+                <i class="fa-solid fa-chevron-right"></i>
+            </button>
+            <button class="pagination-btn" onclick="changePage(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''}>
+                <i class="fa-solid fa-angles-right"></i>
+            </button>
+            <span class="pagination-info">
+                第 ${currentPage} / ${totalPages} 页，共 ${allHistory.length} 条
+            </span>
+        `;
+
+        container.innerHTML = html;
+    }
+
+    function changePage(page) {
+        if (page < 1 || page > totalPages) return;
+        currentPage = page;
+        updatePaginationData();
+    }
+
+    function submitLeave() {
+        const btn = document.getElementById('submitBtn');
+        const originalText = btn.textContent;
+        
+        const data = {
+            leave_type: document.getElementById('leave_type').value,
+            start_date: document.getElementById('start_date').value,
+            end_date: document.getElementById('end_date').value,
+            leave_days: parseFloat(document.getElementById('leave_days').value),
+            half_day: document.getElementById('half_day').value,
+            remark: document.getElementById('remark').value
+        };
+
+        btn.disabled = true;
+        btn.textContent = '提交中...';
+
+        fetch('/api/leave/apply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(res => res.json())
+        .then(res => {
+            if (res.code === 200) {
+                showModal(res.msg, 'success');
+                document.getElementById('leaveForm').reset();
+                loadBalance();
+                loadHistory(); // 提交成功后立即刷新历史记录
+            } else {
+                showModal('申请失败：' + res.msg, 'error');
+            }
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        });
+    }
+</script>
+</body>
+</html>

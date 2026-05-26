@@ -1,0 +1,2534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理员 - 考勤数据分析系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fontawesome/css/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}">
+    <script src="{{ url_for('static', filename='echarts/echarts.min.js') }}"></script>
+    <style>
+        /* 仪表盘专属样式 */
+        .time-filter-bar {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 24px;
+            padding: 16px;
+            background-color: #FFFFFF;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        /* 覆盖 common.css 中的 100% 宽度，使其适应内容 */
+        .time-filter-bar .select-wrapper,
+        .filter-bar .select-wrapper,
+        .table-filter .select-wrapper {
+            width: auto;
+            min-width: 120px;
+        }
+
+        .time-filter-label {
+            font-size: 14px;
+            color: #6B7280;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        /* 统一使用 common.css 的样式，这里只保留特定覆盖 */
+        .time-filter-input,
+        .filter-select, 
+        .filter-input {
+            width: 100%; /* 确保填满容器 */
+            padding: 8px 12px;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            font-size: 14px;
+            background-color: #FFFFFF;
+            transition: border-color 0.2s ease;
+            height: 38px; /* 统一高度 */
+            box-sizing: border-box;
+            min-width: 180px; /* 确保输入框本身也有足够的最小宽度 */
+        }
+
+        /* 针对 select 元素添加 padding-right 以避开自定义箭头 */
+        select.time-filter-input,
+        select.filter-select {
+            padding-right: 32px;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+        }
+
+        .time-filter-input:focus,
+        .filter-select:focus, 
+        .filter-input:focus {
+            outline: none;
+            border-color: #3B82F6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        .time-filter-btn {
+            padding: 8px 16px;
+            background-color: #3B82F6;
+            color: #FFFFFF;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            height: 38px; /* 统一高度 */
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .time-filter-btn:hover {
+            background-color: #2563EB;
+        }
+
+        .view-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid #E5E7EB;
+            padding-bottom: 8px;
+        }
+
+        .tab-item {
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #6B7280;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .tab-item.active {
+            color: #1A365D;
+            border-bottom-color: #3B82F6;
+        }
+
+        .tab-item:hover {
+            color: #1A365D;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .filter-label {
+            font-size: 14px;
+            color: #6B7280;
+            font-weight: 500;
+        }
+
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+        }
+
+
+        .card {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .card-title {
+            font-size: 14px;
+            color: #6B7280;
+            margin-bottom: 8px;
+        }
+
+        .card-value {
+            font-size: 28px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 4px;
+        }
+
+        .card-trend {
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .trend-up {
+            color: #10B981;
+        }
+
+        .trend-down {
+            color: #EF4444;
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .chart-card {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            height: 350px;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.2s ease;
+        }
+
+        .chart-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .chart-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .chart-card h3 .export-btn {
+            font-size: 12px;
+            padding: 4px 8px;
+            background-color: #3B82F6;
+            color: #FFFFFF;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .chart-card h3 .export-btn:hover {
+            background-color: #2563EB;
+        }
+
+        .chart-card > div {
+            flex: 1;
+            width: 100%;
+        }
+
+        .table-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 16px;
+        }
+
+        .table-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            gap: 12px;
+            overflow-x: auto;
+        }
+
+        .table-filter {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: nowrap;
+            flex-shrink: 0;
+        }
+
+        .table-filter .filter-label {
+            font-size: 14px;
+            color: #6B7280;
+            font-weight: 500;
+            white-space: nowrap;
+            line-height: 1;
+        }
+
+        .table-filter .filter-select,
+        .table-filter .filter-input {
+            padding: 6px 12px;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            font-size: 13px;
+            min-width: 110px;
+            background-color: #fff;
+            transition: border-color 0.2s ease;
+        }
+
+        .table-filter .filter-select:hover,
+        .table-filter .filter-input:hover {
+            border-color: #9CA3AF;
+        }
+
+        .table-filter .filter-select:focus,
+        .table-filter .filter-input:focus {
+            outline: none;
+            border-color: #3B82F6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        .table-filter .filter-input {
+            min-width: 150px;
+        }
+
+        .pagination {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pagination-info {
+            font-size: 13px;
+            color: #6B7280;
+            margin-right: 8px;
+        }
+
+        .pagination-btn {
+            padding: 6px 12px;
+            border: 1px solid #E5E7EB;
+            background-color: #FFFFFF;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            border-color: #3B82F6;
+            color: #3B82F6;
+        }
+
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination-btn.active {
+            background-color: #3B82F6;
+            color: #FFFFFF;
+            border-color: #3B82F6;
+        }
+
+        .page-size-select {
+            padding: 6px 10px;
+            border: 1px solid #E5E7EB;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-left: 8px;
+        }
+
+        .no-data-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6B7280;
+            font-size: 14px;
+        }
+
+        .no-data-message i {
+            font-size: 24px;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .view-content {
+            display: none;
+        }
+
+        .view-content.active {
+            display: block;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            color: #6B7280;
+            font-size: 14px;
+        }
+
+        .loading i {
+            margin-right: 8px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .badge-makeup {
+            background-color: #CCFBF1;
+            color: #0F766E;
+        }
+
+        .badge-processed {
+            background-color: #E0E7FF;
+            color: #4F46E5;
+        }
+
+        .badge-warned {
+            background-color: #FFEDD5;
+            color: #C2410C;
+        }
+
+        @media (max-width: 768px) {
+            .chart-grid {
+                grid-template-columns: 1fr;
+            }
+            .chart-card {
+                height: 300px;
+            }
+            .filter-bar {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            .filter-select, .filter-input {
+                width: 100%;
+                min-width: unset;
+            }
+            .time-filter-bar {
+                flex-wrap: wrap;
+                padding: 12px;
+            }
+            .time-filter-input {
+                width: 100%;
+                min-width: unset;
+            }
+            .time-filter-btn {
+                width: 100%;
+                margin-top: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fa-solid fa-clock"></i> 考勤管理系统</h2>
+        </div>
+        <ul class="sidebar-menu">
+            <li><a href="{{ url_for('admin_dashboard') }}" class="active"><i class="fa-solid fa-tachometer-alt"></i>
+                数据总览</a></li>
+            <li><a href="{{ url_for('admin_attendance_warning') }}"><i class="fa-solid fa-bell"></i> 考勤预警</a></li>
+            <li><a href="{{ url_for('admin_leave_approval') }}"><i class="fa-solid fa-check-to-slot"></i> 请假审批</a></li>
+            <li><a href="{{ url_for('admin_data_import') }}"><i class="fa-solid fa-file-excel"></i> 数据导入</a></li>
+            <li><a href="{{ url_for('admin_employee_management') }}"><i class="fa-solid fa-users"></i> 员工管理</a></li>
+            <li><a href="{{ url_for('admin_department_management') }}"><i class="fa-solid fa-building"></i> 部门管理</a>
+            </li>
+            <li><a href="{{ url_for('admin_rule_config') }}"><i class="fa-solid fa-cog"></i> 规则配置</a></li>
+            <li><a href="/admin/holiday-calendar"><i class="fa-solid fa-calendar-days"></i> 节假日管理</a></li>
+            <li><a href="{{ url_for('admin_data_backup') }}"><i class="fa-solid fa-database"></i> 数据备份</a></li>
+            <li><a href="{{ url_for('logout') }}"><i class="fa-solid fa-sign-out-alt"></i> 退出登录</a></li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <div class="header">
+            <h1 class="header-title">考勤数据总览</h1>
+            <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name={{ name[0] }}&background=1A365D&color=fff&rounded=true&bold=true&font-size=0.6" alt="Avatar">
+                <span>{{ name }}（{{ session.role }}）</span>
+            </div>
+        </div>
+
+        <div class="view-tabs">
+            <div class="tab-item active" data-view="all">全平台</div>
+            <div class="tab-item" data-view="dept">部门维度</div>
+            <div class="tab-item" data-view="personal">个人维度</div>
+        </div>
+
+        <div class="time-filter-bar">
+            <span class="time-filter-label">选择时间：</span>
+            <div class="select-wrapper">
+                <select id="time-granularity" class="time-filter-input" title="选择按年或按季度">
+                    <option value="year">按年</option>
+                    <option value="quarter">按季度</option>
+                </select>
+            </div>
+            <div class="select-wrapper" id="time-select-quarter-wrapper" style="display:none;">
+                <select id="time-select-quarter" class="time-filter-input" style="width:120px;">
+                    <option value="Q1">Q1 (1-3月)</option>
+                    <option value="Q2">Q2 (4-6月)</option>
+                    <option value="Q3">Q3 (7-9月)</option>
+                    <option value="Q4">Q4 (10-12月)</option>
+                </select>
+            </div>
+            <input type="number" class="time-filter-input" id="time-select-year" value="{{ current_month.split('-')[0] }}" min="2000" max="{{ current_month.split('-')[0] }}" style="width:110px;">
+            <button class="time-filter-btn" id="time-confirm-btn">
+                <i class="fa-solid fa-search"></i> 确认查询
+            </button>
+        </div>
+
+        <!-- 全平台视图 -->
+        <div class="view-content active" id="all-view">
+            <div class="loading" id="all-loading">
+                <i class="fa-solid fa-spinner"></i> 加载中...
+            </div>
+
+            <div class="card-grid" id="all-card-grid" style="display: none;">
+                <div class="card">
+                    <div class="card-title" id="all-emp-count-title">当前总员工数</div>
+                    <div class="card-value" id="all-emp-count">0</div>
+                    <div class="card-trend trend-up" id="all-emp-trend">
+                        <i class="fa-solid fa-arrow-up"></i> <span id="all-emp-trend-value">0</span>% 较上月
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title" id="all-attendance-title">本月出勤率</div>
+                    <div class="card-value" id="all-attendance">0%</div>
+                    <div class="card-trend trend-up" id="all-attendance-trend">
+                        <i class="fa-solid fa-arrow-up"></i> <span id="all-attendance-trend-value">0</span>% 较上月
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title" id="all-abnormal-title">本月异常次数</div>
+                    <div class="card-value" id="all-abnormal">0</div>
+                    <div class="card-trend trend-down" id="all-abnormal-trend">
+                        <i class="fa-solid fa-arrow-down"></i> <span id="all-abnormal-trend-value">0</span>% 较上月
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title" id="all-absent-title">旷工人数</div>
+                    <div class="card-value" id="all-absent">0</div>
+                    <div class="card-trend trend-down" id="all-absent-trend">
+                        <i class="fa-solid fa-arrow-down"></i> <span id="all-absent-trend-value">0</span>% 较上月
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>月度出勤率趋势
+                        <button class="export-btn" data-export-type="attendance_trend"><i class="fa-solid fa-download"></i> 导出</button>
+                    </h3>
+                    <div id="attendanceTrendChart"></div>
+                </div>
+                <div class="chart-card">
+                    <h3>部门异常分布
+                        <button class="export-btn" data-export-type="dept_abnormal"><i class="fa-solid fa-download"></i> 导出</button>
+                    </h3>
+                    <div id="deptAbnormalChart"></div>
+                </div>
+            </div>
+
+            <div class="table-card">
+                <h3>公司异常考勤明细</h3>
+                <div class="table-toolbar">
+                    <div class="table-filter">
+                        <span class="filter-label">筛选：</span>
+                        <div class="select-wrapper">
+                            <select class="filter-select" id="abnormal-filter-dept" title="按部门筛选">
+                                <option value="">全部部门</option>
+                                {% for dept in departments %}
+                                <option value="{{ dept.dept_code }}">{{ dept.dept_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="select-wrapper">
+                            <select class="filter-select" id="abnormal-filter-type" title="按异常类型筛选">
+                                <option value="">全部类型</option>
+                                <option value="迟到">迟到</option>
+                                <option value="早退">早退</option>
+                                <option value="旷工">旷工</option>
+                                <option value="漏打卡">漏打卡</option>
+                            </select>
+                        </div>
+                        <div class="select-wrapper">
+                            <select class="filter-select" id="abnormal-filter-status" title="按状态筛选">
+                                <option value="">全部状态</option>
+                                <option value="待处理">待处理</option>
+                                <option value="已处理">已处理 (全部)</option>
+                                <option value="已批准">已批准</option>
+                                <option value="已警告">已警告</option>
+                                <option value="已补假">已补假</option>
+                                <option value="已驳回">已驳回</option>
+                            </select>
+                        </div>
+                        <div class="select-wrapper">
+                            <select class="filter-select" id="abnormal-filter-month" title="按月份筛选">
+                                <option value="">全部月份</option>
+                            </select>
+                        </div>
+                        <input type="text" class="filter-input" id="abnormal-filter-keyword" placeholder="搜索员工姓名">
+                    </div>
+                    <div class="pagination" id="abnormal-pagination">
+                        <span class="pagination-info" id="abnormal-page-info">第 0-0 条 / 共 0 条</span>
+                        <button class="pagination-btn" id="abnormal-prev-btn" disabled><i class="fa-solid fa-chevron-left"></i></button>
+                        <button class="pagination-btn" id="abnormal-next-btn"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </div>
+                <table class="data-table">
+                    <thead>
+                    <tr>
+                        <th>员工姓名</th>
+                        <th>部门</th>
+                        <th>异常日期</th>
+                        <th>异常类型</th>
+                        <th>异常时长(分钟)</th>
+                        <th>状态</th>
+                        <th>备注</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody id="abnormal-records-tbody">
+                    <!-- 数据将通过JavaScript动态填充 -->
+                    </tbody>
+                </table>
+                <div id="abnormal-no-data" class="no-data-message" style="display: none;">
+                    <i class="fa-solid fa-inbox"></i>
+                    暂无异常考勤记录
+                </div>
+            </div>
+        </div>
+
+        <!-- 部门维度视图 -->
+        <div class="view-content" id="dept-view">
+            <div class="filter-bar">
+                <span class="filter-label">选择部门：</span>
+                <div class="select-wrapper">
+                    <select class="filter-select" id="dept-select">
+                        <option value="all">全部部门</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.dept_code }}">{{ dept.dept_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="loading" id="dept-loading" style="display: none;">
+                <i class="fa-solid fa-spinner"></i> 加载中...
+            </div>
+
+            <div class="card-grid" id="dept-card-grid" style="display: none;">
+                <div class="card">
+                    <div class="card-title" id="dept-emp-count-title">部门员工数</div>
+                    <div class="card-value" id="dept-emp-count">0</div>
+                    <div class="card-trend trend-up" id="dept-emp-trend">
+                        <i class="fa-solid fa-arrow-up"></i> <span id="dept-emp-trend-value">0</span>% 较上月
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title" id="dept-attendance-title">本月出勤率</div>
+                    <div class="card-value" id="dept-attendance">0%</div>
+                    <div class="card-trend trend-up" id="dept-attendance-trend">
+                        <i class="fa-solid fa-arrow-up"></i> <span id="dept-attendance-trend-value">0</span>% 较上月
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title" id="dept-abnormal-title">本月异常次数</div>
+                    <div class="card-value" id="dept-abnormal">0</div>
+                    <div class="card-trend trend-down" id="dept-abnormal-trend">
+                        <i class="fa-solid fa-arrow-down"></i> <span id="dept-abnormal-trend-value">0</span>% 较上月
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title" id="dept-absent-title">旷工人数</div>
+                    <div class="card-value" id="dept-absent">0</div>
+                    <div class="card-trend trend-down" id="dept-absent-trend">
+                        <i class="fa-solid fa-arrow-down"></i> <span id="dept-absent-trend-value">0</span>% 较上月
+                    </div>
+                </div>
+            </div>
+
+            <div id="dept-no-data" class="no-data-message" style="display: block;">
+                <i class="fa-solid fa-building"></i>
+                请从上方选择具体部门以查看数据
+            </div>
+
+            <div class="chart-grid" id="dept-chart-grid" style="display: none;">
+                <div class="chart-card">
+                    <h3>部门月度出勤率趋势
+                        <button class="export-btn" data-export-type="dept_attendance_trend"><i class="fa-solid fa-download"></i> 导出</button>
+                    </h3>
+                    <div id="deptAttendanceChart"></div>
+                </div>
+                <div class="chart-card">
+                    <h3>部门异常类型分布
+                        <button class="export-btn" data-export-type="dept_abnormal_type"><i class="fa-solid fa-download"></i> 导出</button>
+                    </h3>
+                    <div id="deptAbnormalTypeChart"></div>
+                </div>
+            </div>
+
+            <div class="table-card" id="dept-table-card" style="display: none;">
+                <h3>部门员工出勤率排名</h3>
+                <table class="data-table" id="dept-employee-rank-table">
+                    <thead>
+                    <tr>
+                        <th>排名</th>
+                        <th>员工姓名</th>
+                        <th>本月出勤率</th>
+                        <th>异常次数</th>
+                        <th>累计迟到时长(分钟)</th>
+                    </tr>
+                    </thead>
+                    <tbody id="dept-employee-rank-tbody">
+                    <!-- 数据将通过JavaScript动态填充 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 个人维度视图 -->
+        <div class="view-content" id="personal-view">
+            <!-- 搜索栏 -->
+            <div class="filter-bar">
+                <span class="filter-label">搜索员工：</span>
+                <input type="text" class="filter-input" id="employee-search" placeholder="输入员工姓名/工号搜索" style="max-width: 200px;">
+                <button class="time-filter-btn" id="employee-search-btn">
+                    <i class="fa-solid fa-search"></i> 搜索
+                </button>
+            </div>
+
+            <!-- 未搜索员工时的提示 -->
+            <div id="personal-no-search" class="no-data-message" style="display: block;">
+                <i class="fa-solid fa-search"></i>
+                请输入员工姓名或工号进行查找
+            </div>
+
+            <!-- 加载状态占位 -->
+            <div class="loading" id="personal-loading" style="display: none;">
+                <i class="fa-solid fa-spinner"></i> 加载中...
+            </div>
+
+            <!-- 个人核心指标卡片（含员工信息） -->
+            <div class="card-grid" id="personal-card-grid" style="display: none; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                <div class="card" style="background: linear-gradient(135deg, #1A365D 0%, #2D4A7C 100%); color: white;">
+                    <div class="card-title" style="color: rgba(255,255,255,0.8);">员工姓名</div>
+                    <div class="card-value" id="personal-emp-name" style="color: white;">-</div>
+                    <div style="margin-top: 8px; font-size: 13px; color: rgba(255,255,255,0.7);">
+                        <span id="personal-emp-code">工号：-</span> | <span id="personal-dept-name">部门：-</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title" id="personal-attend-days-title">出勤天数</div>
+                    <div class="card-value" id="personal-attend-days">0</div>
+                    <div class="card-trend trend-up" id="personal-attend-days-trend">
+                        <i class="fa-solid fa-arrow-up"></i> <span id="personal-attend-days-trend-value">0</span> 天
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title" id="personal-attendance-title">出勤率</div>
+                    <div class="card-value" id="personal-attendance">0%</div>
+                    <div class="card-trend trend-up" id="personal-attendance-trend">
+                        <i class="fa-solid fa-arrow-up"></i> <span id="personal-attendance-trend-value">0</span>%
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title" id="personal-abnormal-title">异常次数</div>
+                    <div class="card-value" id="personal-abnormal">0</div>
+                    <div class="card-trend trend-down" id="personal-abnormal-trend">
+                        <i class="fa-solid fa-arrow-down"></i> <span id="personal-abnormal-trend-value">0</span>%
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title" id="personal-late-time-title">累计迟到时长</div>
+                    <div class="card-value" id="personal-late-time">0</div>
+                    <div class="card-trend trend-down" id="personal-late-time-trend">
+                        <i class="fa-solid fa-arrow-down"></i> <span id="personal-late-time-trend-value">0</span>%
+                    </div>
+                </div>
+            </div>
+
+            <!-- 个人图表 -->
+            <div class="chart-grid" id="personal-chart-grid" style="display: none;">
+                <div class="chart-card">
+                    <h3>打卡趋势
+                        <button class="export-btn" data-export-type="personal_checkin"><i class="fa-solid fa-download"></i> 导出</button>
+                    </h3>
+                    <div id="personalCheckinChart"></div>
+                </div>
+                <div class="chart-card">
+                    <h3>异常类型分布
+                        <button class="export-btn" data-export-type="personal_abnormal"><i class="fa-solid fa-download"></i> 导出</button>
+                    </h3>
+                    <div id="personalAbnormalChart"></div>
+                </div>
+            </div>
+
+            <!-- 个人异常明细 -->
+            <div class="table-card" id="personal-table-card" style="display: none;">
+                <h3>个人异常考勤明细</h3>
+                <div class="table-toolbar">
+                <div class="table-filter">
+                        <span class="filter-label">筛选：</span>
+                        <div class="select-wrapper">
+                            <select class="filter-select" id="personal-abnormal-filter-type" title="按异常类型筛选">
+                                <option value="">全部类型</option>
+                                <option value="迟到">迟到</option>
+                                <option value="早退">早退</option>
+                                <option value="旷工">旷工</option>
+                                <option value="漏打卡">漏打卡</option>
+                            </select>
+                        </div>
+                        <div class="select-wrapper">
+                            <select class="filter-select" id="personal-abnormal-filter-status" title="按状态筛选">
+                                <option value="">全部状态</option>
+                                <option value="待处理">待处理</option>
+                                <option value="已处理">已处理 (全部)</option>
+                                <option value="已批准">已批准</option>
+                                <option value="已警告">已警告</option>
+                                <option value="已补假">已补假</option>
+                                <option value="已驳回">已驳回</option>
+                            </select>
+                        </div>
+                        <div class="select-wrapper">
+                            <select class="filter-select" id="personal-abnormal-filter-month" title="按月份筛选">
+                                <option value="">全部月份</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="pagination" id="personal-abnormal-pagination">
+                        <span class="pagination-info" id="personal-abnormal-page-info">第 0-0 条 / 共 0 条</span>
+                        <button class="pagination-btn" id="personal-abnormal-prev-btn" disabled><i class="fa-solid fa-chevron-left"></i></button>
+                        <button class="pagination-btn" id="personal-abnormal-next-btn"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </div>
+                <table class="data-table" id="personal-abnormal-detail-table">
+                    <thead>
+                    <tr>
+                        <th>异常日期</th>
+                        <th>异常类型</th>
+                        <th>打卡时间</th>
+                        <th>异常时长(分钟)</th>
+                        <th>备注</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody id="personal-abnormal-detail-tbody">
+                    <!-- 数据将通过JavaScript动态填充 -->
+                    </tbody>
+                </table>
+                <div id="personal-abnormal-no-data" class="no-data-message" style="display: none;">
+                    <i class="fa-solid fa-inbox"></i>
+                    暂无异常考勤记录
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- 处理异常弹窗 (参考 departmental-abnormal 样式) -->
+<div class="modal-overlay" id="process-modal">
+    <div class="modal" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3>处理异常</h3>
+            <i class="fa-solid fa-xmark modal-close" onclick="closeProcessModal()"></i>
+        </div>
+        <div class="modal-body">
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label style="display:block;margin-bottom:8px;font-size:14px;color:#6B7280;">处理操作</label>
+                <div class="select-wrapper">
+                    <select id="process-action" class="form-control" style="width:100%;">
+                        <option value="approve">批准 (Approve)</option>
+                        <option value="warn">警告 (Warn)</option>
+                        <option value="makeup">补假 (Makeup)</option>
+                        <option value="reject">驳回 (Reject)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label style="display:block;margin-bottom:8px;font-size:14px;color:#6B7280;">备注说明</label>
+                <textarea id="process-remark" class="form-control" rows="3" placeholder="请输入处理备注（选填）" style="width:100%;resize:vertical;"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeProcessModal()">取消</button>
+            <button class="btn btn-primary" onclick="submitProcess()">确认处理</button>
+        </div>
+    </div>
+</div>
+
+{% include 'includes/_modals.html' %}
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+
+<script>
+    // ========== 全局配置 & 常量定义 ==========
+    const API_BASE_URL = "/api";
+    let currentDataTime = ''; // 记录当前显示数据的时间
+    let chartInstances = {
+        attendanceTrendChart: null,
+        deptAbnormalChart: null,
+        deptAttendanceChart: null,
+        deptAbnormalTypeChart: null,
+        personalCheckinChart: null,
+        personalAbnormalChart: null
+    };
+
+    // 异常考勤明细分页和筛选相关变量
+    let abnormalRecordsData = [];
+    let abnormalCurrentPage = 1;
+    const abnormalPageSize = 20;
+    let abnormalDataKey = '';
+
+    // 个人异常考勤明细分页和筛选相关变量
+    let personalAbnormalRecordsData = [];
+    let personalAbnormalCurrentPage = 1;
+    const personalAbnormalPageSize = 20;
+    let personalAbnormalDataKey = '';
+
+    // ========== DOM元素 ==========
+    const tabItems = document.querySelectorAll('.tab-item');
+    const viewContents = document.querySelectorAll('.view-content');
+    const deptSelect = document.getElementById('dept-select');
+    const employeeSearch = document.getElementById('employee-search');
+    const timeGranularity = document.getElementById('time-granularity');
+    const timeSelectQuarter = document.getElementById('time-select-quarter');
+    const timeSelectYear = document.getElementById('time-select-year');
+    const timeConfirmBtn = document.getElementById('time-confirm-btn');
+
+    // 异常考勤明细分页和筛选相关元素
+    const abnormalFilterDept = document.getElementById('abnormal-filter-dept');
+    const abnormalFilterType = document.getElementById('abnormal-filter-type');
+    const abnormalFilterStatus = document.getElementById('abnormal-filter-status');
+    const abnormalFilterKeyword = document.getElementById('abnormal-filter-keyword');
+    const abnormalFilterMonth = document.getElementById('abnormal-filter-month');
+    const abnormalPrevBtn = document.getElementById('abnormal-prev-btn');
+    const abnormalNextBtn = document.getElementById('abnormal-next-btn');
+    const abnormalPageInfo = document.getElementById('abnormal-page-info');
+    const abnormalNoData = document.getElementById('abnormal-no-data');
+    const abnormalRecordsTbody = document.getElementById('abnormal-records-tbody');
+
+    // 个人异常考勤明细筛选元素
+    const personalAbnormalFilterType = document.getElementById('personal-abnormal-filter-type');
+    const personalAbnormalFilterStatus = document.getElementById('personal-abnormal-filter-status');
+    const personalAbnormalFilterMonth = document.getElementById('personal-abnormal-filter-month');
+    const personalAbnormalPrevBtn = document.getElementById('personal-abnormal-prev-btn');
+    const personalAbnormalNextBtn = document.getElementById('personal-abnormal-next-btn');
+    const personalAbnormalPageInfo = document.getElementById('personal-abnormal-page-info');
+    const personalAbnormalNoData = document.getElementById('personal-abnormal-no-data');
+
+    // helper: return object {type:'year'|'quarter', value:'YYYY' or 'YYYY-MM', quarter:'Q1'-'Q4'}
+    function getSelectedTime() {
+        const gran = timeGranularity.value;
+        const yearVal = timeSelectYear.value || new Date().getFullYear().toString();
+        if (gran === 'year') {
+            return { type: 'year', value: yearVal };
+        }
+        // quarter
+        const q = timeSelectQuarter.value || 'Q1';
+        const quarterMonths = {
+            'Q1': ['01', '02', '03'],
+            'Q2': ['04', '05', '06'],
+            'Q3': ['07', '08', '09'],
+            'Q4': ['10', '11', '12']
+        };
+        // 注意：value 格式保持 YYYY-MM (取季度第一个月) 是为了兼容后端现有的逻辑，或者我们可以在这里明确传 year 和 quarter
+        return { type: 'quarter', value: `${yearVal}-${quarterMonths[q][0]}`, quarter: q, quarterMonths: quarterMonths[q] };
+    }
+
+    // 检查所选时间是否超过当日
+    function isTimeExceedingToday(sel) {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
+
+        const selectedYear = parseInt(sel.value.split('-')[0], 10);
+
+        if (selectedYear > currentYear) {
+            return true;
+        }
+
+        if (selectedYear === currentYear) {
+            if (sel.type === 'quarter') {
+                // 季度模式：检查季度开始月份是否在未来
+                const qStartMonth = parseInt(sel.quarterMonths[0], 10);
+                if (qStartMonth > currentMonth) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // 更新季度选项状态：禁止选择未来的季度
+    function updateQuarterOptions() {
+        const year = parseInt(timeSelectYear.value, 10);
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
+        
+        const options = timeSelectQuarter.options;
+        let hasDisabled = false;
+
+        for (let i = 0; i < options.length; i++) {
+            const opt = options[i];
+            const qVal = opt.value; // Q1, Q2, Q3, Q4
+            let startMonth = 1;
+            if (qVal === 'Q2') startMonth = 4;
+            if (qVal === 'Q3') startMonth = 7;
+            if (qVal === 'Q4') startMonth = 10;
+            
+            if (year > currentYear) {
+                opt.disabled = true;
+                hasDisabled = true;
+            } else if (year === currentYear) {
+                // 如果季度开始月份大于当前月份，禁用
+                if (startMonth > currentMonth) {
+                    opt.disabled = true;
+                    hasDisabled = true;
+                    if (opt.selected) {
+                        // 如果选中的是未来的季度，尝试切换到前一个可用季度
+                        // 简单处理：如果是 Q2 禁用，切回 Q1。如果是 Q1 禁用... 说明整年都未来？
+                    }
+                } else {
+                    opt.disabled = false;
+                }
+            } else {
+                opt.disabled = false;
+            }
+        }
+        
+        // 如果当前选中的选项被禁用了，自动切换到最后一个可用选项
+        if (timeSelectQuarter.selectedOptions[0].disabled) {
+             for (let i = options.length - 1; i >= 0; i--) {
+                 if (!options[i].disabled) {
+                     timeSelectQuarter.value = options[i].value;
+                     break;
+                 }
+             }
+        }
+    }
+
+    // ========== 异常考勤明细分页和筛选功能 ==========
+    // 异常类型转换函数：英文 -> 中文
+    function getAbnormalTypeText(type) {
+        const typeMap = {
+            'LATE': '迟到',
+            'EARLY': '早退',
+            'ABSENT': '旷工',
+            'MISSING_CHECK': '漏打卡'
+        };
+        return typeMap[type] || type;
+    }
+    function initAbnormalPagination() {
+        // 全平台异常记录筛选事件
+        abnormalFilterDept.addEventListener('change', () => {
+            abnormalCurrentPage = 1;
+            renderAbnormalRecords();
+        });
+        abnormalFilterType.addEventListener('change', () => {
+            abnormalCurrentPage = 1;
+            renderAbnormalRecords();
+        });
+        abnormalFilterStatus.addEventListener('change', () => {
+            abnormalCurrentPage = 1;
+            renderAbnormalRecords();
+        });
+        abnormalFilterKeyword.addEventListener('input', () => {
+            abnormalCurrentPage = 1;
+            renderAbnormalRecords();
+        });
+        abnormalFilterMonth.addEventListener('change', () => {
+            abnormalCurrentPage = 1;
+            renderAbnormalRecords();
+        });
+        abnormalPrevBtn.addEventListener('click', () => {
+            if (abnormalCurrentPage > 1) {
+                abnormalCurrentPage--;
+                renderAbnormalRecords();
+            }
+        });
+        abnormalNextBtn.addEventListener('click', () => {
+            const totalPages = Math.ceil(getFilteredRecords().length / abnormalPageSize);
+            if (abnormalCurrentPage < totalPages) {
+                abnormalCurrentPage++;
+                renderAbnormalRecords();
+            }
+        });
+
+        // 个人异常记录筛选事件
+        personalAbnormalFilterType.addEventListener('change', () => {
+            personalAbnormalCurrentPage = 1;
+            renderPersonalAbnormalRecords();
+        });
+        personalAbnormalFilterStatus.addEventListener('change', () => {
+            personalAbnormalCurrentPage = 1;
+            renderPersonalAbnormalRecords();
+        });
+        personalAbnormalFilterMonth.addEventListener('change', () => {
+            personalAbnormalCurrentPage = 1;
+            renderPersonalAbnormalRecords();
+        });
+        personalAbnormalPrevBtn.addEventListener('click', () => {
+            if (personalAbnormalCurrentPage > 1) {
+                personalAbnormalCurrentPage--;
+                renderPersonalAbnormalRecords();
+            }
+        });
+        personalAbnormalNextBtn.addEventListener('click', () => {
+            const totalPages = Math.ceil(getPersonalFilteredRecords().length / personalAbnormalPageSize);
+            if (personalAbnormalCurrentPage < totalPages) {
+                personalAbnormalCurrentPage++;
+                renderPersonalAbnormalRecords();
+            }
+        });
+    }
+
+    // 获取全平台筛选后的数据
+    function getFilteredRecords() {
+        return abnormalRecordsData.filter(record => {
+            // 按部门筛选（通过部门名称匹配）
+            if (abnormalFilterDept.value) {
+                const deptOption = abnormalFilterDept.options[abnormalFilterDept.selectedIndex];
+                const selectedDeptName = deptOption.text;
+                if (selectedDeptName && record.department_name !== selectedDeptName) {
+                    return false;
+                }
+            }
+            // 按异常类型筛选
+            if (abnormalFilterType.value && getAbnormalTypeText(record.abnormal_type) !== abnormalFilterType.value) {
+                return false;
+            }
+            // 按状态筛选
+            if (abnormalFilterStatus.value) {
+                if (abnormalFilterStatus.value === '已处理') {
+                    if (record.status === '待处理') return false;
+                } else if (record.status !== abnormalFilterStatus.value) {
+                    return false;
+                }
+            }
+            // 按关键词搜索（员工姓名）
+            if (abnormalFilterKeyword.value) {
+                const keyword = abnormalFilterKeyword.value.trim().toLowerCase();
+                const employeeName = (record.employee_name || '').toLowerCase();
+                if (!employeeName.includes(keyword)) {
+                    return false;
+                }
+            }
+            // 按月份筛选
+            const selectedMonth = abnormalFilterMonth.value;
+            if (selectedMonth) {
+                const recordMonth = record.abnormal_date.substring(0, 7); // 提取 YYYY-MM
+                if (recordMonth !== selectedMonth) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    // 填充月份下拉框
+    function populateAbnormalMonthFilter() {
+        const months = new Set();
+        abnormalRecordsData.forEach(record => {
+            const month = record.abnormal_date.substring(0, 7); // 提取 YYYY-MM
+            months.add(month);
+        });
+
+        // 按月份排序（降序）
+        const sortedMonths = Array.from(months).sort().reverse();
+
+        // 保存當前選中的月份
+        const currentSelected = abnormalFilterMonth.value;
+
+        // 清空並重新填充選項
+        abnormalFilterMonth.innerHTML = '<option value="">全部月份</option>';
+        sortedMonths.forEach(month => {
+            const option = document.createElement('option');
+            option.value = month;
+            option.textContent = `${month.replace('-', '年')}月`;
+            abnormalFilterMonth.appendChild(option);
+        });
+
+        // 恢復選中狀態（如果該月份仍在選項中）
+        if (currentSelected && sortedMonths.includes(currentSelected)) {
+            abnormalFilterMonth.value = currentSelected;
+        }
+    }
+
+    // 渲染异常考勤记录（分页）
+    function renderAbnormalRecords() {
+        const abnormalTable = document.getElementById('abnormal-records-tbody');
+        const filteredRecords = getFilteredRecords();
+        const totalRecords = filteredRecords.length;
+        const totalPages = Math.ceil(totalRecords / abnormalPageSize);
+        const startIndex = (abnormalCurrentPage - 1) * abnormalPageSize;
+        const endIndex = Math.min(startIndex + abnormalPageSize, totalRecords);
+        const pageRecords = filteredRecords.slice(startIndex, endIndex);
+
+        // 更新分页信息
+        if (totalRecords === 0) {
+            abnormalPageInfo.textContent = '共 0 条';
+            abnormalNoData.style.display = 'block';
+            abnormalTable.innerHTML = '';
+        } else {
+            abnormalPageInfo.textContent = `第 ${startIndex + 1}-${endIndex} 条 / 共 ${totalRecords} 条`;
+            abnormalNoData.style.display = 'none';
+
+            // 渲染数据
+            abnormalTable.innerHTML = '';
+            pageRecords.forEach(record => {
+                let statusBadge = '';
+                if (record.status === '待处理' || record.status === '待处理 (超时)') {
+                    // 检查是否超过审核时效 (新)
+                    const createTime = new Date(record.create_time);
+                    const now = new Date();
+                    const diffHours = (now - createTime) / (1000 * 60 * 60);
+                    const reviewLimit = window.exceptionReviewTime || 24;
+                    
+                    if (diffHours > reviewLimit) {
+                        statusBadge = '<span class="status-badge badge-danger">待处理 (超时)</span>';
+                    } else {
+                        statusBadge = '<span class="status-badge badge-warning">待处理</span>';
+                    }
+                } else {
+                    // 使用后端返回的详细状态和样式
+                    statusBadge = `<span class="status-badge ${record.status_class || 'badge-success'}">${record.status}</span>`;
+                }
+
+                const tr = document.createElement('tr');
+                const actionHtml = (record.status === '待处理' || record.status === '待处理 (超时)')
+                    ? `<button type="button" class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="openProcessModal('${record.abnormal_id}')">处理</button>`
+                    : '-';
+                tr.innerHTML = `
+                    <td>${record.employee_name || '-'}</td>
+                    <td>${record.department_name || '-'}</td>
+                    <td>${record.abnormal_date || '-'}</td>
+                    <td>${getAbnormalTypeText(record.abnormal_type) || '-'}</td>
+                    <td>${record.abnormal_duration || '-'}</td>
+                    <td>${statusBadge}</td>
+                    <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${record.remark || ''}">${record.remark || '-'}</td>
+                    <td>${actionHtml}</td>
+                `;
+                abnormalTable.appendChild(tr);
+            });
+        }
+
+        // 更新分页按钮状态
+        abnormalPrevBtn.disabled = abnormalCurrentPage <= 1;
+        abnormalNextBtn.disabled = abnormalCurrentPage >= totalPages;
+
+        // 填充月份下拉框选项
+        populateAbnormalMonthFilter();
+    }
+
+    // 异常处理相关函数
+    let currentProcessId = null;
+
+    function openProcessModal(id) {
+        currentProcessId = id;
+        const modal = document.getElementById('process-modal');
+        if (modal) {
+            modal.style.display = 'flex';
+            document.getElementById('process-action').value = 'approve';
+            document.getElementById('process-remark').value = '';
+        }
+    }
+
+    function closeProcessModal() {
+        const modal = document.getElementById('process-modal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+        currentProcessId = null;
+    }
+
+    async function submitProcess() {
+        if (!currentProcessId) return;
+        
+        const action = document.getElementById('process-action').value;
+        const remark = document.getElementById('process-remark').value.trim();
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/manager/abnormal/process`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ id: currentProcessId, action, remark })
+            });
+            const res = await response.json();
+            if (res.code === 200) {
+                // 定义状态映射逻辑，与后端保持一致
+                let statusText = '已处理';
+                let statusClass = 'badge-success';
+                switch(action) {
+                    case 'approve': statusText = '已批准'; statusClass = 'badge-approved'; break;
+                    case 'warn': statusText = '已警告'; statusClass = 'badge-warned'; break;
+                    case 'makeup': statusText = '已补假'; statusClass = 'badge-makeup'; break;
+                    case 'reject': statusText = '已驳回'; statusClass = 'badge-rejected'; break;
+                }
+
+                // 更新本地数据状态 (全平台视图)
+                const rec = abnormalRecordsData.find(r => String(r.abnormal_id) === String(currentProcessId));
+                if (rec) {
+                    rec.status = statusText;
+                    rec.status_class = statusClass;
+                    rec.remark = remark;
+                    renderAbnormalRecords();
+                }
+                
+                // 更新本地数据状态 (个人视图)
+                const pRec = personalAbnormalRecordsData.find(r => String(r.abnormal_id) === String(currentProcessId));
+                if (pRec) {
+                    pRec.status = statusText;
+                    pRec.statusClass = statusClass;
+                    pRec.remark = remark;
+                    renderPersonalAbnormalRecords();
+                }
+                
+                showModal('处理成功', 'success');
+                closeProcessModal();
+            } else {
+                showModal(res.msg || '处理失败', 'error');
+            }
+        } catch (error) {
+            console.error('Submit Process Error:', error);
+            showModal('网络错误，请稍后重试', 'error');
+        }
+    }
+
+    // 获取个人筛选后的数据
+    function getPersonalFilteredRecords() {
+        return personalAbnormalRecordsData.filter(record => {
+            // 按异常类型筛选
+            if (personalAbnormalFilterType.value && record.type !== personalAbnormalFilterType.value) {
+                return false;
+            }
+            // 按状态筛选
+            if (personalAbnormalFilterStatus.value) {
+                if (personalAbnormalFilterStatus.value === '已处理') {
+                    if (record.status === '待处理') return false;
+                } else if (record.status !== personalAbnormalFilterStatus.value) {
+                    return false;
+                }
+            }
+            // 按月份筛选
+            const selectedMonth = personalAbnormalFilterMonth.value;
+            if (selectedMonth) {
+                const recordMonth = record.date.substring(0, 7); // 提取 YYYY-MM
+                if (recordMonth !== selectedMonth) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    // 填充个人异常月份下拉框
+    function populatePersonalAbnormalMonthFilter() {
+        const months = new Set();
+        personalAbnormalRecordsData.forEach(record => {
+            const month = record.date.substring(0, 7);
+            months.add(month);
+        });
+
+        const sortedMonths = Array.from(months).sort().reverse();
+        const currentSelected = personalAbnormalFilterMonth.value;
+
+        personalAbnormalFilterMonth.innerHTML = '<option value="">全部月份</option>';
+        sortedMonths.forEach(month => {
+            const option = document.createElement('option');
+            option.value = month;
+            option.textContent = `${month.replace('-', '年')}月`;
+            personalAbnormalFilterMonth.appendChild(option);
+        });
+
+        if (currentSelected && sortedMonths.includes(currentSelected)) {
+            personalAbnormalFilterMonth.value = currentSelected;
+        }
+    }
+
+    // 渲染个人异常考勤记录（分页）
+    function renderPersonalAbnormalRecords() {
+        const tableBody = document.getElementById('personal-abnormal-detail-tbody');
+        const filteredRecords = getPersonalFilteredRecords();
+        const totalRecords = filteredRecords.length;
+        const totalPages = Math.ceil(totalRecords / personalAbnormalPageSize);
+        const startIndex = (personalAbnormalCurrentPage - 1) * personalAbnormalPageSize;
+        const endIndex = Math.min(startIndex + personalAbnormalPageSize, totalRecords);
+        const pageRecords = filteredRecords.slice(startIndex, endIndex);
+
+        if (totalRecords === 0) {
+            personalAbnormalPageInfo.textContent = '共 0 条';
+            personalAbnormalNoData.style.display = 'block';
+            tableBody.innerHTML = '';
+        } else {
+            personalAbnormalPageInfo.textContent = `第 ${startIndex + 1}-${endIndex} 条 / 共 ${totalRecords} 条`;
+            personalAbnormalNoData.style.display = 'none';
+            tableBody.innerHTML = '';
+
+            pageRecords.forEach(item => {
+                let statusBadge = '';
+                if (item.status === '待处理') {
+                    const createTime = new Date(item.create_time);
+                    const now = new Date();
+                    const diffHours = (now - createTime) / (1000 * 60 * 60);
+                    const reviewLimit = window.exceptionReviewTime || 24;
+                    
+                    if (diffHours > reviewLimit) {
+                        statusBadge = '<span class="status-badge badge-danger">待处理 (超时)</span>';
+                    } else {
+                        statusBadge = '<span class="status-badge badge-warning">待处理</span>';
+                    }
+                } else {
+                    statusBadge = `<span class="status-badge ${item.statusClass || 'badge-success'}">${item.status || '-'}</span>`;
+                }
+
+                const actionHtml = (item.status === '待处理' || item.status === '待处理 (超时)')
+                    ? `<button type="button" class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="openProcessModal('${item.abnormal_id}')">处理</button>`
+                    : '-';
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.date || '-'}</td>
+                    <td>${getAbnormalTypeText(item.type) || '-'}</td>
+                    <td>${item.checkinTime || '-'}</td>
+                    <td>${item.duration || 0}</td>
+                    <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${item.remark || ''}">${item.remark || '-'}</td>
+                    <td>${statusBadge}</td>
+                    <td>${actionHtml}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        personalAbnormalPrevBtn.disabled = personalAbnormalCurrentPage <= 1;
+        personalAbnormalNextBtn.disabled = personalAbnormalCurrentPage >= totalPages;
+
+        populatePersonalAbnormalMonthFilter();
+    }
+
+    const exportButtons = document.querySelectorAll('.export-btn');
+
+    // ========== 维度切换核心逻辑 ==========
+    tabItems.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabItems.forEach(item => item.classList.remove('active'));
+            viewContents.forEach(content => content.classList.remove('active'));
+
+            tab.classList.add('active');
+            const viewId = tab.dataset.view + '-view';
+            document.getElementById(viewId).classList.add('active');
+
+            const activeView = tab.dataset.view;
+            if (activeView === 'dept' && !chartInstances.deptAttendanceChart) {
+                initDeptCharts();
+            }
+            // 个人图表在加载数据并显示容器后再初始化，避免在隐藏状态下初始化导致尺寸为0
+
+            const sel = getSelectedTime();
+            if (sel && sel.value) {
+                setTimeout(() => updateDataByTime(false), 100);
+            } else {
+                if (activeView === 'dept') loadDeptData(deptSelect.value);
+                if (activeView === 'personal') loadPersonalData(employeeSearch.value.trim());
+            }
+        });
+    });
+
+    // ========== 部门筛选逻辑 ==========
+    deptSelect.addEventListener('change', () => {
+        loadDeptData(deptSelect.value);
+    });
+
+    // ========== 员工搜索逻辑 ==========
+    const employeeSearchBtn = document.getElementById('employee-search-btn');
+    
+    // 点击按钮搜索
+    if (employeeSearchBtn) {
+        employeeSearchBtn.addEventListener('click', () => {
+            const keyword = employeeSearch.value.trim();
+            loadPersonalData(keyword);
+        });
+    }
+
+    // 回车键搜索
+    if (employeeSearch) {
+        employeeSearch.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const keyword = e.target.value.trim();
+                loadPersonalData(keyword);
+            }
+        });
+    }
+
+    // ========== 时间筛选核心逻辑 ==========
+    timeConfirmBtn.addEventListener('click', () => updateDataByTime(true));
+    timeSelectQuarter.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') updateDataByTime(true);
+    });
+    timeSelectYear.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') updateDataByTime(true);
+    });
+    timeSelectYear.addEventListener('input', () => {
+        // 限制最大年份
+        const maxYear = new Date().getFullYear();
+        if (parseInt(timeSelectYear.value) > maxYear) {
+            timeSelectYear.value = maxYear;
+        }
+        updateQuarterOptions();
+    });
+    timeGranularity.addEventListener('change', () => {
+        const quarterWrapper = document.getElementById('time-select-quarter-wrapper');
+        if (timeGranularity.value === 'quarter') {
+            if (quarterWrapper) quarterWrapper.style.display = 'inline-block';
+            else timeSelectQuarter.style.display = ''; // fallback
+            
+            timeSelectYear.style.display = '';
+            updateQuarterOptions();
+        } else {
+            if (quarterWrapper) quarterWrapper.style.display = 'none';
+            else timeSelectQuarter.style.display = 'none'; // fallback
+            
+            timeSelectYear.style.display = '';
+        }
+    });
+
+    // ========== 数据导出功能 ==========
+    exportButtons.forEach(btn => {
+        btn.addEventListener('click', function () {
+            const exportType = this.dataset.exportType;
+            const sel = getSelectedTime();
+            let exportUrl = `${API_BASE_URL}/export?type=${exportType}`;
+            
+            // 针对出勤率趋势和部门异常分布导出，提供年份选择
+            if (exportType === 'attendance_trend' || exportType === 'dept_abnormal') {
+                const year = prompt("请输入要导出的年份（如：2025、2026）：", new Date().getFullYear());
+                if (year === null) return; // 取消
+                
+                const targetYear = parseInt(year);
+                if (isNaN(targetYear) || targetYear < 2000 || targetYear > 2100) {
+                    alert("请输入有效的年份");
+                    return;
+                }
+                exportUrl += `&target_year=${targetYear}`;
+            }
+
+            if (sel.type === 'year') {
+                exportUrl += `&year=${sel.value}`;
+            } else if (sel.type === 'quarter') {
+                exportUrl += `&year=${sel.value.split('-')[0]}&quarter=${sel.quarter}`;
+            } else if (sel.type === 'month') {
+                exportUrl += `&month=${sel.value}`;
+            }
+
+            if (exportType.includes('dept')) {
+                exportUrl += `&dept_code=${deptSelect.value}`;
+            }
+
+            if (exportType.includes('personal')) {
+                exportUrl += `&emp_keyword=${employeeSearch.value.trim()}`;
+            }
+
+            window.open(exportUrl, '_blank');
+        });
+    });
+
+    /**
+     * 加载部门维度数据
+     * @param {string} deptCode 部门编码
+     */
+    async function loadDeptData(deptCode) {
+        // 如果是全部部门，显示提示信息
+        if (!deptCode || deptCode === 'all') {
+            document.getElementById('dept-card-grid').style.display = 'none';
+            document.getElementById('dept-no-data').style.display = 'block';
+            document.getElementById('dept-employee-rank-tbody').innerHTML = '';
+            // 隐藏图表和表格
+            document.getElementById('dept-chart-grid').style.display = 'none';
+            document.getElementById('dept-table-card').style.display = 'none';
+            return;
+        }
+
+        // 确保图表已初始化
+        if (!chartInstances.deptAttendanceChart || !chartInstances.deptAbnormalTypeChart) {
+            initDeptCharts();
+        }
+
+        const loadingEl = document.getElementById('dept-loading');
+        const cardGrid = document.getElementById('dept-card-grid');
+        const rankTable = document.getElementById('dept-employee-rank-tbody');
+
+        loadingEl.style.display = 'flex';
+        cardGrid.style.display = 'none';
+
+        try {
+            const sel = getSelectedTime();
+
+            // 根据时间粒度更新卡片标题
+            updateDeptCardTitles(sel.type);
+
+            const paramsObj = { dept_code: deptCode };
+            if (sel.type === 'year') {
+                paramsObj.year = sel.value;
+            } else if (sel.type === 'quarter') {
+                // 季度模式
+                paramsObj.year = sel.value.split('-')[0];
+                paramsObj.quarter = sel.quarter;
+            }
+            const params = new URLSearchParams(paramsObj);
+
+            const response = await fetch(`${API_BASE_URL}/dept/data?${params}`, {
+                headers: {'Accept': 'application/json'},
+                credentials: 'same-origin'
+            });
+
+            if (!response.ok) throw new Error(`HTTP错误：${response.status}`);
+
+            const data = await response.json();
+            if (data.code !== 200) throw new Error(data.msg || '部门数据加载失败');
+
+            // 更新卡片数据
+            document.getElementById('dept-emp-count').textContent = (data.data.empCount || 0);
+            document.getElementById('dept-attendance').textContent = data.data.attendance || '0%';
+            document.getElementById('dept-abnormal').textContent = (data.data.abnormal || 0);
+            document.getElementById('dept-absent').textContent = (data.data.absent || 0);
+
+            // 更新趋势数据（颜色和箭头根据数值正负动态显示）
+            const deptEmpGrowth = data.data.empGrowthRate || 0;
+            const deptAttendanceGrowth = data.data.attendanceGrowthRate || 0;
+            const deptAbnormalDrop = data.data.abnormalDropRate || 0;
+            const deptAbsentDrop = data.data.absentDropRate || 0;
+
+            // 根据时间模式确定比较文字
+            let deptCompareText = '';
+            if (sel.type === 'year') {
+                deptCompareText = '较去年同期';
+            } else if (sel.type === 'quarter') {
+                deptCompareText = '较上季度';
+            }
+
+            // 员工数趋势
+            const deptEmpTrendEl = document.getElementById('dept-emp-trend');
+            deptEmpTrendEl.className = `card-trend ${deptEmpGrowth >= 0 ? 'trend-up' : 'trend-down'}`;
+            deptEmpTrendEl.innerHTML = `<i class="fa-solid fa-arrow-${deptEmpGrowth >= 0 ? 'up' : 'down'}"></i> <span id="dept-emp-trend-value">${Math.abs(deptEmpGrowth)}</span>% ${deptCompareText}`;
+
+            // 出勤率趋势
+            const deptAttendanceTrendEl = document.getElementById('dept-attendance-trend');
+            deptAttendanceTrendEl.className = `card-trend ${deptAttendanceGrowth >= 0 ? 'trend-up' : 'trend-down'}`;
+            deptAttendanceTrendEl.innerHTML = `<i class="fa-solid fa-arrow-${deptAttendanceGrowth >= 0 ? 'up' : 'down'}"></i> <span id="dept-attendance-trend-value">${Math.abs(deptAttendanceGrowth)}</span>% ${deptCompareText}`;
+
+            // 异常次数趋势（下降=好=绿色，上升=坏=红色，0=绿色向下）
+            const deptAbnormalTrendEl = document.getElementById('dept-abnormal-trend');
+            let deptAbnClass = 'trend-up'; let deptAbnIcon = 'fa-arrow-down';
+            if (deptAbnormalDrop < 0) { deptAbnClass = 'trend-down'; deptAbnIcon = 'fa-arrow-up'; }
+            deptAbnormalTrendEl.className = `card-trend ${deptAbnClass}`;
+            deptAbnormalTrendEl.innerHTML = `<i class="fa-solid ${deptAbnIcon}"></i> <span id="dept-abnormal-trend-value">${Math.abs(deptAbnormalDrop)}</span>% ${deptCompareText}`;
+
+            // 旷工人数趋势（下降=好=绿色，上升=坏=红色，0=绿色向下）
+            const deptAbsentTrendEl = document.getElementById('dept-absent-trend');
+            let deptAbsClass = 'trend-up'; let deptAbsIcon = 'fa-arrow-down';
+            if (deptAbsentDrop < 0) { deptAbsClass = 'trend-down'; deptAbsIcon = 'fa-arrow-up'; }
+            deptAbsentTrendEl.className = `card-trend ${deptAbsClass}`;
+            deptAbsentTrendEl.innerHTML = `<i class="fa-solid ${deptAbsIcon}"></i> <span id="dept-absent-trend-value">${Math.abs(deptAbsentDrop)}</span>% ${deptCompareText}`;
+
+            // 更新员工排名表格
+            if (rankTable && data.data.employeeRank) {
+                rankTable.innerHTML = '';
+                data.data.employeeRank.forEach((item, index) => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${item.rank || index + 1}</td>
+                        <td>${item.name || '-'}</td>
+                        <td>${item.attendanceRate || '0%'}</td>
+                        <td>${item.abnormalCount || 0}</td>
+                        <td>${item.lateTime || 0}</td>
+                    `;
+                    rankTable.appendChild(tr);
+                });
+            }
+
+            // 更新图表数据（按年显示 12 个月，按季度显示该季度3个月，按月仅显示所选月份）
+            if (chartInstances.deptAttendanceChart) {
+                let xLabels = [];
+                let seriesData = [];
+                try {
+                    if (sel && sel.type === 'year') {
+                        xLabels = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+                        seriesData = data.data.trendData || [];
+                    } else if (sel && sel.type === 'quarter') {
+                        // 季度模式：显示该季度的3个月份
+                        const year = sel.value.split('-')[0];
+                        const months = sel.quarterMonths;
+                        xLabels = months.map(m => `${year}-${m}`);
+                        // 从后端返回的12个月数据中提取对应月份的数据
+                        if (data.data.trendData && data.data.trendData.length === 12) {
+                            seriesData = months.map((m, idx) => {
+                                const monthIndex = parseInt(m, 10) - 1;
+                                return data.data.trendData[monthIndex] || 0;
+                            });
+                        } else {
+                            // fallback: use attendance value for quarter average
+                            const val = parseFloat(String(data.data.attendance || '0').replace('%','')) || 0;
+                            seriesData = [val, val, val];
+                        }
+                    }
+                } catch (e) {
+                    console.error('设置部门趋势图数据失败:', e);
+                    xLabels = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+                    seriesData = data.data.trendData || [];
+                }
+
+                chartInstances.deptAttendanceChart.setOption({
+                    xAxis: { type: 'category', data: xLabels },
+                    series: [{ data: seriesData }]
+                });
+            }
+
+            if (chartInstances.deptAbnormalTypeChart && data.data.abnormalTypeData) {
+                chartInstances.deptAbnormalTypeChart.setOption({
+                    series: [{data: data.data.abnormalTypeData}]
+                });
+            }
+
+        } catch (error) {
+            console.error('加载部门数据失败：', error);
+            showModal(`部门数据加载失败：${error.message}`, 'error');
+        } finally {
+            loadingEl.style.display = 'none';
+            cardGrid.style.display = 'grid';
+            // 隐藏提示信息，显示图表和表格
+            document.getElementById('dept-no-data').style.display = 'none';
+            document.getElementById('dept-chart-grid').style.display = 'grid';
+            document.getElementById('dept-table-card').style.display = 'block';
+            
+            // 恢复 chart-card 的 flex 布局（移除可能存在的内联样式）
+            document.getElementById('deptAttendanceChart').parentElement.style.display = '';
+            document.getElementById('deptAbnormalTypeChart').parentElement.style.display = '';
+            
+            // 关键修复：容器显示后必须resize图表，否则可能因为容器之前隐藏导致尺寸为0
+            if (chartInstances.deptAttendanceChart) chartInstances.deptAttendanceChart.resize();
+            if (chartInstances.deptAbnormalTypeChart) chartInstances.deptAbnormalTypeChart.resize();
+        }
+    }
+
+    /**
+     * 加载个人维度数据
+     * @param {string} keyword 员工姓名/工号关键词
+     */
+    async function loadPersonalData(keyword) {
+        const loadingEl = document.getElementById('personal-loading');
+        const cardGrid = document.getElementById('personal-card-grid');
+        const detailTable = document.getElementById('personal-abnormal-detail-tbody');
+
+        loadingEl.style.display = 'flex';
+        cardGrid.style.display = 'none';
+
+        try {
+            // 如果关键词为空，显示提示并返回
+            if (!keyword) {
+                document.getElementById('personal-no-search').style.display = 'block';
+                document.getElementById('personal-card-grid').style.display = 'none';
+                document.getElementById('personal-chart-grid').style.display = 'none';
+                document.getElementById('personal-table-card').style.display = 'none';
+                return;
+            }
+
+            // 使用全局时间筛选器
+            const sel = getSelectedTime();
+            const params = new URLSearchParams({
+                keyword: keyword
+            });
+            if (sel.type === 'year') {
+                params.set('year', sel.value);
+            } else if (sel.type === 'quarter') {
+                params.set('year', sel.value.split('-')[0]);
+                params.set('quarter', sel.quarter);
+            }
+
+            const response = await fetch(`${API_BASE_URL}/employee/data?${params}`, {
+                credentials: 'same-origin'
+            });
+            
+            // 尝试解析 JSON 响应
+            let data;
+            try {
+                data = await response.json();
+            } catch (e) {
+                // 如果不是 JSON，且响应不成功，则抛出状态码错误
+                if (!response.ok) throw new Error(`HTTP错误：${response.status}`);
+            }
+
+            // 处理非 200 响应
+            if (!response.ok) {
+                // 404: 未找到用户; 400: 参数错误或多重匹配
+                if (data && data.msg) {
+                    showModal(data.msg, 'warning');
+                } else {
+                    showModal(`请求失败：${response.status}`, 'error');
+                }
+                
+                // 隐藏数据区域
+                document.getElementById('personal-card-grid').style.display = 'none';
+                document.getElementById('personal-chart-grid').style.display = 'none';
+                document.getElementById('personal-table-card').style.display = 'none';
+                document.getElementById('personal-no-search').style.display = 'block';
+                return;
+            }
+
+            if (data.code !== 200) {
+                // 业务逻辑错误
+                if (data.code === 400) {
+                    // 400 通常是参数问题，静默处理或显示警告
+                     document.getElementById('personal-card-grid').style.display = 'none';
+                     document.getElementById('personal-chart-grid').style.display = 'none';
+                     document.getElementById('personal-table-card').style.display = 'none';
+                     return;
+                }
+                throw new Error(data.msg || '个人数据加载失败');
+            }
+
+            // 更新员工信息
+            document.getElementById('personal-emp-name').textContent = data.data.empInfo?.empName || '-';
+            document.getElementById('personal-emp-code').textContent = `工号：${data.data.empInfo?.empCode || '-'}`;
+            document.getElementById('personal-dept-name').textContent = `部门：${data.data.empInfo?.deptName || '-'}`;
+
+            // 更新卡片数据
+            document.getElementById('personal-attend-days').textContent = (data.data.attendDays || 0);
+            document.getElementById('personal-attendance').textContent = data.data.attendance || '0%';
+            document.getElementById('personal-abnormal').textContent = (data.data.abnormal || 0);
+            document.getElementById('personal-late-time').textContent = (data.data.lateTime || 0);
+
+            // 根据时间模式更新卡片标题
+            const isYearMode = sel.type === 'year';
+            if (isYearMode) {
+                document.getElementById('personal-attend-days-title').textContent = '年度出勤天数';
+                document.getElementById('personal-attendance-title').textContent = '年度平均出勤率';
+                document.getElementById('personal-abnormal-title').textContent = '年度异常次数';
+                document.getElementById('personal-late-time-title').textContent = '年度累计迟到分钟';
+            } else {
+                document.getElementById('personal-attend-days-title').textContent = '季度出勤天数';
+                document.getElementById('personal-attendance-title').textContent = '季度平均出勤率';
+                document.getElementById('personal-abnormal-title').textContent = '季度异常次数';
+                document.getElementById('personal-late-time-title').textContent = '季度累计迟到';
+            }
+
+            // 更新趋势数据
+            const personalAttendDaysGrowth = data.data.attendDaysGrowth || 0;
+            const personalAttendanceDrop = data.data.attendanceDropRate || 0;
+            const personalAbnormalGrowth = data.data.abnormalGrowth || 0;
+            const personalLateTimeGrowth = data.data.lateTimeGrowth || 0;
+
+            // 根据时间模式确定比较文字
+            const compareText = isYearMode ? '较去年同期' : '较上季度';
+
+            // 出勤天数趋势
+            const personalAttendDaysTrendEl = document.getElementById('personal-attend-days-trend');
+            personalAttendDaysTrendEl.className = `card-trend ${personalAttendDaysGrowth >= 0 ? 'trend-up' : 'trend-down'}`;
+            personalAttendDaysTrendEl.innerHTML = `<i class="fa-solid fa-arrow-${personalAttendDaysGrowth >= 0 ? 'up' : 'down'}"></i> <span id="personal-attend-days-trend-value">${Math.abs(personalAttendDaysGrowth)}</span>% ${compareText}`;
+
+            // 出勤率趋势 (DropRate: >0 Bad Red Down, <0 Good Green Up, 0 Good Green Up)
+            const personalAttendanceTrendEl = document.getElementById('personal-attendance-trend');
+            let pAttClass = 'trend-up'; let pAttIcon = 'fa-arrow-up';
+            if (personalAttendanceDrop > 0) { pAttClass = 'trend-down'; pAttIcon = 'fa-arrow-down'; }
+            personalAttendanceTrendEl.className = `card-trend ${pAttClass}`;
+            personalAttendanceTrendEl.innerHTML = `<i class="fa-solid ${pAttIcon}"></i> <span id="personal-attendance-trend-value">${Math.abs(personalAttendanceDrop)}</span>% ${compareText}`;
+
+            // 异常次数趋势 (Growth: >0 Bad Red Up, <0 Good Green Down, 0 Good Green Down)
+            const personalAbnormalTrendEl = document.getElementById('personal-abnormal-trend');
+            let pAbnClass = 'trend-up'; let pAbnIcon = 'fa-arrow-down';
+            if (personalAbnormalGrowth > 0) { pAbnClass = 'trend-down'; pAbnIcon = 'fa-arrow-up'; }
+            personalAbnormalTrendEl.className = `card-trend ${pAbnClass}`;
+            personalAbnormalTrendEl.innerHTML = `<i class="fa-solid ${pAbnIcon}"></i> <span id="personal-abnormal-trend-value">${Math.abs(personalAbnormalGrowth)}</span>% ${compareText}`;
+
+            // 迟到时长趋势 (Growth: >0 Bad Red Up, <0 Good Green Down, 0 Good Green Down)
+            const personalLateTimeTrendEl = document.getElementById('personal-late-time-trend');
+            let pLateClass = 'trend-up'; let pLateIcon = 'fa-arrow-down';
+            if (personalLateTimeGrowth > 0) { pLateClass = 'trend-down'; pLateIcon = 'fa-arrow-up'; }
+            personalLateTimeTrendEl.className = `card-trend ${pLateClass}`;
+            personalLateTimeTrendEl.innerHTML = `<i class="fa-solid ${pLateIcon}"></i> <span id="personal-late-time-trend-value">${Math.abs(personalLateTimeGrowth)}</span>% ${compareText}`;
+
+            // 更新异常明细表格（使用前端分页和筛选）
+            if (data.data.abnormalDetail) {
+                const nextKey = `${sel.type}:${sel.value || ''}:${sel.quarter || ''}:${(data.data.empInfo && data.data.empInfo.empCode) || ''}`;
+                if (nextKey !== personalAbnormalDataKey) {
+                    personalAbnormalFilterType.value = '';
+                    personalAbnormalFilterStatus.value = '';
+                    personalAbnormalFilterMonth.value = '';
+                    personalAbnormalDataKey = nextKey;
+                }
+                personalAbnormalRecordsData = data.data.abnormalDetail;
+                personalAbnormalCurrentPage = 1;
+                renderPersonalAbnormalRecords();
+            } else {
+                personalAbnormalRecordsData = [];
+                renderPersonalAbnormalRecords();
+            }
+
+            // 成功加载后显示数据、隐藏提示
+            document.getElementById('personal-no-search').style.display = 'none';
+            document.getElementById('personal-card-grid').style.display = 'grid';
+            document.getElementById('personal-chart-grid').style.display = 'grid';
+            document.getElementById('personal-table-card').style.display = 'block';
+
+            // 容器显示后再初始化图表，确保尺寸计算正确
+            if (!chartInstances.personalCheckinChart) {
+                initPersonalCharts();
+            } else {
+                chartInstances.personalCheckinChart.resize();
+                chartInstances.personalAbnormalChart.resize();
+            }
+
+            // 动态生成 X 轴标签
+            let xLabels = [];
+            if (sel.type === 'year') {
+                xLabels = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+            } else if (sel.type === 'quarter') {
+                // 按季度模式：显示该季度的月份
+                xLabels = sel.quarterMonths.map(m => `${parseInt(m)}月`);
+            }
+            // 已移除按月模式的逻辑
+
+            // 更新图表数据
+            if (chartInstances.personalCheckinChart && data.data.checkinData && data.data.checkoutData) {
+                chartInstances.personalCheckinChart.setOption({
+                    xAxis: {
+                        data: xLabels
+                    },
+                    series: [
+                        {name: '上班打卡', data: data.data.checkinData},
+                        {name: '下班打卡', data: data.data.checkoutData}
+                    ]
+                });
+            }
+
+            if (chartInstances.personalAbnormalChart && data.data.abnormalTypeData) {
+                chartInstances.personalAbnormalChart.setOption({
+                    series: [{data: data.data.abnormalTypeData}]
+                });
+            }
+
+        } catch (error) {
+            console.error('加载员工数据失败：', error);
+            // 错误时显示提示
+            document.getElementById('personal-no-search').style.display = 'block';
+            document.getElementById('personal-card-grid').style.display = 'none';
+            document.getElementById('personal-chart-grid').style.display = 'none';
+            document.getElementById('personal-table-card').style.display = 'none';
+        } finally {
+            loadingEl.style.display = 'none';
+        }
+    }
+
+    /**
+     * 按时间筛选数据
+     * @param {boolean} showAlert 是否显示操作提示弹窗
+     */
+    async function updateDataByTime(showAlert = true) {
+        const sel = getSelectedTime();
+        if (!sel || !sel.value) {
+            if (showAlert) showModal('请选择要查询的时间（按年或按月）！', 'warning');
+            return;
+        }
+
+        // 检查所选时间是否超过当日
+        if (isTimeExceedingToday(sel)) {
+            showModal('⚠️ 所选时间已超过当日，无法查询未来时间的数据！', 'warning');
+            return;
+        }
+
+        const activeTab = document.querySelector('.tab-item.active');
+        const activeView = activeTab?.dataset.view || 'all';
+
+        try {
+            switch (activeView) {
+                case 'all':
+                    await updateAllViewData(sel);
+                    break;
+                case 'dept':
+                    if (!deptSelect.value || deptSelect.value === 'all') {
+                        if (showAlert) showModal('请先从上方选择具体部门！', 'warning');
+                        return;
+                    }
+                    await loadDeptData(deptSelect.value);
+                    break;
+                case 'personal':
+                    if (!employeeSearch.value.trim()) {
+                        if (showAlert) showModal('请先输入员工姓名或工号！', 'warning');
+                        return;
+                    }
+                    await loadPersonalData(employeeSearch.value.trim());
+                    break;
+            }
+
+            if (showAlert) {
+                    const viewName = activeView === 'all' ? '全平台' : activeView === 'dept' ? '部门' : '个人';
+                    const timeDisplay = sel.quarter ? `${sel.value.split('-')[0]}年${sel.quarter}` : sel.value;
+                    
+                    // 只有当时间真正发生变化时，才显示“已切换”提示
+                    // 避免用户在个人维度搜索时（时间未变）弹出不必要的提示
+                    if (currentDataTime !== timeDisplay) {
+                        showModal(`已切换至${timeDisplay}的${viewName}数据！`, 'success');
+                        currentDataTime = timeDisplay;
+                    }
+                } else {
+                    // 如果不显示提示（如标签切换），也要更新当前时间记录
+                    const timeDisplay = sel.quarter ? `${sel.value.split('-')[0]}年${sel.quarter}` : sel.value;
+                    currentDataTime = timeDisplay;
+                }
+            } catch (error) {
+            console.error('时间筛选失败：', error);
+            showModal(`数据切换失败：${error.message}`, 'error');
+        }
+    }
+
+    /**
+     * 根据时间粒度更新全平台卡片标题
+     * @param {string} timeType - 'year' | 'quarter'
+     */
+    function updateAllCardTitles(timeType) {
+        // 出勤率卡片标题
+        const attendanceTitle = document.getElementById('all-attendance-title');
+        if (timeType === 'year') {
+            attendanceTitle.textContent = '年度平均月出勤率';
+        } else if (timeType === 'quarter') {
+            attendanceTitle.textContent = '季度平均月出勤率';
+        }
+
+        // 异常次数卡片标题
+        const abnormalTitle = document.getElementById('all-abnormal-title');
+        if (timeType === 'year') {
+            abnormalTitle.textContent = '年度异常次数';
+        } else if (timeType === 'quarter') {
+            abnormalTitle.textContent = '季度异常次数';
+        }
+
+        // 旷工人数卡片标题
+        const absentTitle = document.getElementById('all-absent-title');
+        if (timeType === 'year') {
+            absentTitle.textContent = '年度旷工人数';
+        } else if (timeType === 'quarter') {
+            absentTitle.textContent = '季度旷工人数';
+        }
+
+        // 更新趋势标签显示
+        const empTrend = document.getElementById('all-emp-trend');
+        const attendanceTrend = document.getElementById('all-attendance-trend');
+        const abnormalTrend = document.getElementById('all-abnormal-trend');
+        const absentTrend = document.getElementById('all-absent-trend');
+
+        if (timeType === 'year') {
+            empTrend.innerHTML = '<i class="fa-solid fa-arrow-up"></i> <span id="all-emp-trend-value">0</span>% 较去年同期';
+            attendanceTrend.innerHTML = '<i class="fa-solid fa-arrow-up"></i> <span id="all-attendance-trend-value">0</span>% 较去年同期';
+            abnormalTrend.innerHTML = '<i class="fa-solid fa-arrow-down"></i> <span id="all-abnormal-trend-value">0</span>% 较去年同期';
+            absentTrend.innerHTML = '<i class="fa-solid fa-arrow-down"></i> <span id="all-absent-trend-value">0</span>% 较去年同期';
+        } else if (timeType === 'quarter') {
+            empTrend.innerHTML = '<i class="fa-solid fa-arrow-up"></i> <span id="all-emp-trend-value">0</span>% 较上季度';
+            attendanceTrend.innerHTML = '<i class="fa-solid fa-arrow-up"></i> <span id="all-attendance-trend-value">0</span>% 较上季度';
+            abnormalTrend.innerHTML = '<i class="fa-solid fa-arrow-down"></i> <span id="all-abnormal-trend-value">0</span>% 较上季度';
+            absentTrend.innerHTML = '<i class="fa-solid fa-arrow-down"></i> <span id="all-absent-trend-value">0</span>% 较上季度';
+        }
+    }
+
+    /**
+     * 根据时间粒度更新部门维度卡片标题
+     * @param {string} timeType - 'year' | 'quarter'
+     */
+    function updateDeptCardTitles(timeType) {
+        const empCountTitle = document.getElementById('dept-emp-count-title');
+        const attendanceTitle = document.getElementById('dept-attendance-title');
+        const abnormalTitle = document.getElementById('dept-abnormal-title');
+        const absentTitle = document.getElementById('dept-absent-title');
+
+        if (timeType === 'year') {
+            if(empCountTitle) empCountTitle.textContent = '部门员工数';
+            if(attendanceTitle) attendanceTitle.textContent = '年度平均出勤率';
+            if(abnormalTitle) abnormalTitle.textContent = '年度异常次数';
+            if(absentTitle) absentTitle.textContent = '年度旷工人数';
+        } else if (timeType === 'quarter') {
+            if(empCountTitle) empCountTitle.textContent = '部门员工数';
+            if(attendanceTitle) attendanceTitle.textContent = '季度平均出勤率';
+            if(abnormalTitle) abnormalTitle.textContent = '季度异常次数';
+            if(absentTitle) absentTitle.textContent = '季度旷工人数';
+        }
+    }
+
+    /**
+     * 更新全平台维度数据
+     * @param {string} time 选中的月份（YYYY-MM）
+     */
+    async function updateAllViewData(sel) {
+        const loadingEl = document.getElementById('all-loading');
+        const cardGrid = document.getElementById('all-card-grid');
+        const abnormalTable = document.getElementById('abnormal-records-tbody');
+
+        loadingEl.style.display = 'flex';
+        cardGrid.style.display = 'none';
+
+        // 根据时间粒度更新卡片标题
+        updateAllCardTitles(sel.type);
+
+        try {
+            const paramsObj = {};
+            if (sel.type === 'year') {
+                paramsObj.year = sel.value;
+            } else if (sel.type === 'quarter') {
+                // 季度模式：获取年份和季度参数
+                paramsObj.year = sel.value.split('-')[0];
+                paramsObj.quarter = sel.quarter;
+            }
+            const params = new URLSearchParams(paramsObj);
+            const response = await fetch(`${API_BASE_URL}/dashboard/data?${params}`, { headers: {'Accept': 'application/json'}, credentials: 'same-origin' });
+            if (!response.ok) throw new Error(`HTTP错误：${response.status}`);
+
+            const data = await response.json();
+            if (data.code !== 200) throw new Error(data.msg || '全平台数据加载失败');
+
+            // 更新卡片数据
+            document.getElementById('all-emp-count').textContent = (data.data.empCount || 0);
+            document.getElementById('all-attendance').textContent = data.data.attendance || '0%';
+            document.getElementById('all-abnormal').textContent = (data.data.abnormal || 0);
+            document.getElementById('all-absent').textContent = (data.data.absent || 0);
+
+            // 更新全局变量，供表格渲染使用
+            window.exceptionReviewTime = data.data.exceptionReviewTime || 24;
+
+            // 更新趋势数据（颜色和箭头根据数值正负动态显示）
+        const empGrowth = data.data.employeeGrowthRate || 0;
+        const attendanceGrowth = data.data.attendanceGrowthRate || 0;
+        const abnormalDrop = data.data.abnormalDropRate || 0;
+        const absentDrop = data.data.absentDropRate || 0;
+
+        // 根据时间模式确定比较文字
+        let compareText = '';
+        if (sel.type === 'year') {
+            compareText = '较去年同期';
+        } else if (sel.type === 'quarter') {
+            compareText = '较上季度';
+        } else {
+            compareText = '较上月';
+        }
+
+        // 员工数趋势（上升=绿色+上箭头，下降=红色+下箭头）
+        const empTrendValueEl = document.getElementById('all-emp-trend-value');
+        const empTrendEl = document.getElementById('all-emp-trend');
+        if (empTrendValueEl) {
+            empTrendEl.className = `card-trend ${empGrowth >= 0 ? 'trend-up' : 'trend-down'}`;
+            empTrendEl.innerHTML = `<i class="fa-solid fa-arrow-${empGrowth >= 0 ? 'up' : 'down'}"></i> <span id="all-emp-trend-value">${Math.abs(empGrowth)}</span>% ${compareText}`;
+        }
+
+        // 出勤率趋势（上升=绿色+上箭头，下降=红色+下箭头）
+        const attendanceTrendValueEl = document.getElementById('all-attendance-trend-value');
+        const attendanceTrendEl = document.getElementById('all-attendance-trend');
+        if (attendanceTrendValueEl) {
+            attendanceTrendEl.className = `card-trend ${attendanceGrowth >= 0 ? 'trend-up' : 'trend-down'}`;
+            attendanceTrendEl.innerHTML = `<i class="fa-solid fa-arrow-${attendanceGrowth >= 0 ? 'up' : 'down'}"></i> <span id="all-attendance-trend-value">${Math.abs(attendanceGrowth)}</span>% ${compareText}`;
+        }
+
+        // 异常次数趋势（下降=绿色+下箭头，上升=红色+上箭头，0=绿色+下箭头）
+        const abnormalTrendValueEl = document.getElementById('all-abnormal-trend-value');
+        const abnormalTrendEl = document.getElementById('all-abnormal-trend');
+        if (abnormalTrendValueEl) {
+            let allAbnClass = 'trend-up'; let allAbnIcon = 'fa-arrow-down';
+            if (abnormalDrop < 0) { allAbnClass = 'trend-down'; allAbnIcon = 'fa-arrow-up'; }
+            abnormalTrendEl.className = `card-trend ${allAbnClass}`;
+            abnormalTrendEl.innerHTML = `<i class="fa-solid ${allAbnIcon}"></i> <span id="all-abnormal-trend-value">${Math.abs(abnormalDrop)}</span>% ${compareText}`;
+        }
+
+        // 旷工人数趋势（下降=绿色+下箭头，上升=红色+上箭头，0=绿色+下箭头）
+        const absentTrendValueEl = document.getElementById('all-absent-trend-value');
+        const absentTrendEl = document.getElementById('all-absent-trend');
+        if (absentTrendValueEl) {
+            let allAbsClass = 'trend-up'; let allAbsIcon = 'fa-arrow-down';
+            if (absentDrop < 0) { allAbsClass = 'trend-down'; allAbsIcon = 'fa-arrow-up'; }
+            absentTrendEl.className = `card-trend ${allAbsClass}`;
+            absentTrendEl.innerHTML = `<i class="fa-solid ${allAbsIcon}"></i> <span id="all-absent-trend-value">${Math.abs(absentDrop)}</span>% ${compareText}`;
+        }
+
+            // 更新异常考勤明细表格
+            if (abnormalTable && data.data.abnormalRecords) {
+                const nextKey = `${sel.type}:${sel.value || ''}:${sel.quarter || ''}`;
+                if (nextKey !== abnormalDataKey) {
+                    abnormalFilterDept.value = '';
+                    abnormalFilterType.value = '';
+                    abnormalFilterStatus.value = '';
+                    abnormalFilterKeyword.value = '';
+                    abnormalFilterMonth.value = '';
+                    abnormalDataKey = nextKey;
+                }
+                abnormalRecordsData = data.data.abnormalRecords || [];
+                abnormalCurrentPage = 1;
+                renderAbnormalRecords();
+            }
+
+            // 更新图表数据
+            if (chartInstances.attendanceTrendChart && data.data.trendData) {
+                // 为趋势图设置合适的 x 轴标签：按年显示 1-12 月，按季度显示该季度3个月，按月显示对应的 YYYY-MM 列表
+                let xLabels = [];
+                let seriesData = [];
+                try {
+                    if (sel && sel.type === 'year') {
+                        xLabels = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+                        seriesData = data.data.trendData || [];
+                    } else if (sel && sel.type === 'quarter') {
+                        // 季度模式：显示该季度的3个月份
+                        const year = sel.value.split('-')[0];
+                        const months = sel.quarterMonths;
+                        xLabels = months.map(m => `${year}-${m}`);
+                        // 从后端返回的12个月数据中提取对应月份的数据
+                        seriesData = months.map((m, idx) => {
+                            const monthIndex = parseInt(m, 10) - 1; // 转换为0-based索引
+                            return data.data.trendData[monthIndex] || 0;
+                        });
+                    }
+                } catch (e) {
+                    // fallback to default 12 months
+                    xLabels = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+                    seriesData = data.data.trendData || [];
+                    console.error('生成趋势图 x 轴标签失败:', e);
+                }
+
+                chartInstances.attendanceTrendChart.setOption({
+                    xAxis: { type: 'category', data: xLabels },
+                    series: [{ data: seriesData }]
+                });
+            }
+
+            if (chartInstances.deptAbnormalChart && data.data.deptAbnormalData) {
+                let rawData = [...data.data.deptAbnormalData]; // Clone
+                // Sort descending
+                rawData.sort((a, b) => b.value - a.value);
+                
+                let finalData = [];
+                // If more than 10, keep top 10 and merge others
+                if (rawData.length > 10) {
+                    finalData = rawData.slice(0, 10);
+                    let otherValue = 0;
+                    for (let i = 10; i < rawData.length; i++) {
+                        otherValue += rawData[i].value;
+                    }
+                    if (otherValue > 0) {
+                        finalData.push({ name: '其他部门', value: otherValue });
+                    }
+                } else {
+                    finalData = rawData;
+                }
+
+                chartInstances.deptAbnormalChart.setOption({
+                    series: [{ data: finalData }]
+                });
+            }
+
+        } catch (error) {
+            console.error('加载全平台数据失败：', error);
+            showModal(`全平台数据加载失败：${error.message}`, 'error');
+        } finally {
+            loadingEl.style.display = 'none';
+            cardGrid.style.display = 'grid';
+        }
+    }
+
+    // ========== ECharts图表初始化 ==========
+    function initAllCharts() {
+        // 全平台出勤率趋势图
+        chartInstances.attendanceTrendChart = echarts.init(document.getElementById('attendanceTrendChart'));
+        chartInstances.attendanceTrendChart.setOption({
+            tooltip: {trigger: 'axis', textStyle: {fontSize: 12}},
+            grid: {left: '5%', right: '5%', bottom: '8%', top: '5%', containLabel: true},
+            xAxis: {
+                type: 'category',
+                data: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+                axisLabel: {fontSize: 12},
+                axisLine: {lineStyle: {color: '#E5E7EB'}}
+            },
+            yAxis: {
+                type: 'value',
+                axisLabel: {fontSize: 12, formatter: '{value}%'},
+                axisLine: {lineStyle: {color: '#E5E7EB'}},
+                splitLine: {lineStyle: {color: '#F3F4F6'}}
+            },
+            series: [{
+                name: '出勤率',
+                type: 'line',
+                smooth: true,
+                data: [],
+                lineStyle: {color: '#3B82F6', width: 2},
+                itemStyle: {color: '#1A365D'},
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        {offset: 0, color: 'rgba(59, 130, 246, 0.3)'},
+                        {offset: 1, color: 'rgba(59, 130, 246, 0.0)'}
+                    ])
+                }
+            }],
+            color: ['#1A365D']
+        });
+
+        // 全平台部门异常分布图
+        chartInstances.deptAbnormalChart = echarts.init(document.getElementById('deptAbnormalChart'));
+        chartInstances.deptAbnormalChart.setOption({
+            tooltip: {trigger: 'item', textStyle: {fontSize: 12}, formatter: '{b}: {c} ({d}%)'},
+            legend: {
+                type: 'scroll',
+                orient: 'horizontal',
+                bottom: 0,
+                left: 'center',
+                textStyle: {fontSize: 12}
+            },
+            series: [{
+                name: '异常次数',
+                type: 'pie',
+                top: '-28px',
+                radius: ['40%', '65%'],
+                center: ['50%', '45%'],
+                data: [],
+                avoidLabelOverlap: true,
+                label: {
+                    fontSize: 12, 
+                    formatter: function(params) {
+                        // 如果百分比小于2%，不显示标签，避免重叠
+                        if (params.percent < 2) return '';
+                        
+                        // 截断过长的名称
+                        let name = params.name;
+                        if (name.length > 10) {
+                            name = name.substring(0, 10) + '...';
+                        }
+                        return name + ': ' + params.percent + '%';
+                    }
+                },
+                color: [
+                    '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', 
+                    '#EC4899', '#6366F1', '#14B8A6', '#F97316', '#06B6D4', 
+                    '#84CC16', '#D946EF', '#64748B', '#1A365D', '#4B5563'
+                ],
+                labelLine: {show: true, align: 'center', smooth: 0.2, length: 10, length2: 15}
+            }]
+        });
+    }
+
+    function initDeptCharts() {
+        // 部门出勤率趋势图
+        chartInstances.deptAttendanceChart = echarts.init(document.getElementById('deptAttendanceChart'));
+        chartInstances.deptAttendanceChart.setOption({
+            tooltip: {trigger: 'axis', textStyle: {fontSize: 12}},
+            grid: {left: '5%', right: '5%', bottom: '8%', top: '5%', containLabel: true},
+            xAxis: {
+                type: 'category',
+                data: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+                axisLabel: {fontSize: 12},
+                axisLine: {lineStyle: {color: '#E5E7EB'}}
+            },
+            yAxis: {
+                type: 'value',
+                axisLabel: {fontSize: 12, formatter: '{value}%'},
+                axisLine: {lineStyle: {color: '#E5E7EB'}},
+                splitLine: {lineStyle: {color: '#F3F4F6'}}
+            },
+            series: [{
+                name: '部门出勤率',
+                type: 'line',
+                smooth: true,
+                data: [],
+                lineStyle: {color: '#1A365D', width: 2},
+                itemStyle: {color: '#3B82F6'},
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        {offset: 0, color: 'rgba(26, 54, 93, 0.3)'},
+                        {offset: 1, color: 'rgba(26, 54, 93, 0.0)'}
+                    ])
+                }
+            }],
+            color: ['#1A365D']
+        });
+
+        // 部门异常类型分布图
+        chartInstances.deptAbnormalTypeChart = echarts.init(document.getElementById('deptAbnormalTypeChart'));
+        chartInstances.deptAbnormalTypeChart.setOption({
+            tooltip: {trigger: 'item', textStyle: {fontSize: 12}, formatter: '{b}: {c} ({d}%)'},
+            legend: {
+                orient: 'vertical',
+                right: '5%',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                textStyle: {fontSize: 12}
+            },
+            series: [{
+                name: '异常类型',
+                type: 'pie',
+                radius: ['40%', '70%'],
+                center: ['40%', '50%'],
+                data: [],
+                label: {fontSize: 12, formatter: '{b}: {d}%'},
+                color: ['#F59E0B', '#EF4444', '#8B5CF6', '#3B82F6', '#10B981'],
+                labelLine: {show: true, align: 'center'}
+            }]
+        });
+    }
+
+    function initPersonalCharts() {
+        // 个人打卡趋势图
+        chartInstances.personalCheckinChart = echarts.init(document.getElementById('personalCheckinChart'));
+        
+        // 辅助函数：将小数小时转换为 HH:mm 格式
+        const formatTime = (value) => {
+            if (value == null || isNaN(value)) return '';
+            const hours = Math.floor(value);
+            const minutes = Math.round((value - hours) * 60);
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        };
+
+        chartInstances.personalCheckinChart.setOption({
+            tooltip: {
+                trigger: 'axis',
+                textStyle: {fontSize: 12},
+                formatter: function (params) {
+                    let result = params[0].name + '<br/>';
+                    params.forEach(param => {
+                        const timeStr = formatTime(param.value);
+                        result += `${param.marker} ${param.seriesName}: ${timeStr}<br/>`;
+                    });
+                    return result;
+                }
+            },
+            grid: {left: '5%', right: '5%', bottom: '8%', top: '5%', containLabel: true},
+            xAxis: {
+                type: 'category',
+                data: ['1日', '5日', '10日', '15日', '20日', '25日', '30日'],
+                axisLabel: {fontSize: 12},
+                axisLine: {lineStyle: {color: '#E5E7EB'}}
+            },
+            yAxis: [
+                {
+                    type: 'value', name: '上班打卡',
+                    min: 6, max: 12, // 聚焦早上6点到12点
+                    axisLabel: {fontSize: 12, formatter: formatTime},
+                    axisLine: {lineStyle: {color: '#E5E7EB'}},
+                    splitLine: {lineStyle: {color: '#F3F4F6'}}
+                },
+                {
+                    type: 'value', name: '下班打卡',
+                    min: 15, max: 24, // 聚焦下午3点到12点
+                    axisLabel: {fontSize: 12, formatter: formatTime},
+                    axisLine: {lineStyle: {color: '#E5E7EB'}},
+                    splitLine: {lineStyle: {color: '#F3F4F6'}}
+                }
+            ],
+            series: [
+                {
+                    name: '上班打卡', type: 'line', smooth: true, yAxisIndex: 0,
+                    data: [],
+                    lineStyle: {color: '#3B82F6', width: 2},
+                    itemStyle: {color: '#3B82F6'}
+                },
+                {
+                    name: '下班打卡', type: 'line', smooth: true, yAxisIndex: 1,
+                    data: [],
+                    lineStyle: {color: '#1A365D', width: 2},
+                    itemStyle: {color: '#1A365D'}
+                }
+            ],
+            color: ['#3B82F6', '#1A365D']
+        });
+
+        // 个人异常类型分布图
+        chartInstances.personalAbnormalChart = echarts.init(document.getElementById('personalAbnormalChart'));
+        chartInstances.personalAbnormalChart.setOption({
+            tooltip: {trigger: 'item', textStyle: {fontSize: 12}, formatter: '{b}: {c} 次'},
+            legend: {
+                orient: 'vertical',
+                right: '5%',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                textStyle: {fontSize: 12}
+            },
+            series: [{
+                name: '异常类型',
+                type: 'pie',
+                radius: ['40%', '70%'],
+                center: ['40%', '50%'],
+                data: [],
+                label: {fontSize: 12, formatter: '{b}: {c} 次'},
+                color: ['#F59E0B', '#EF4444', '#8B5CF6', '#3B82F6'],
+                labelLine: {show: true, align: 'center'}
+            }]
+        });
+    }
+
+    // ========== 响应式适配 ==========
+    function initResponsiveResize() {
+        let resizeTimer = null;
+        window.addEventListener('resize', () => {
+            if (resizeTimer) clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                Object.values(chartInstances).forEach(chart => {
+                    if (chart && typeof chart.resize === 'function') {
+                        chart.resize();
+                    }
+                });
+            }, 100);
+        });
+    }
+
+    // ========== 页面初始化入口 ==========
+    window.onload = function () {
+        // 初始化所有图表
+        initAllCharts();
+        initResponsiveResize();
+
+        // 初始化异常考勤分页和筛选
+        initAbnormalPagination();
+
+        // 点击弹窗外区域关闭弹窗
+        window.addEventListener('click', function(e) {
+            const modal = document.getElementById('process-modal');
+            if (e.target === modal) {
+                closeProcessModal();
+            }
+        });
+
+        // 确保时间控件初始显示（默认按年）
+        if (!timeGranularity.value) timeGranularity.value = 'year';
+        
+        // 初始化年份最大值限制
+        const currentYear = new Date().getFullYear();
+        timeSelectYear.max = currentYear;
+
+        if (timeGranularity.value === 'year') {
+            const quarterWrapper = document.getElementById('time-select-quarter-wrapper');
+            if (quarterWrapper) quarterWrapper.style.display = 'none';
+            else timeSelectQuarter.style.display = 'none';
+            
+            timeSelectYear.style.display = '';
+        } else if (timeGranularity.value === 'quarter') {
+            const quarterWrapper = document.getElementById('time-select-quarter-wrapper');
+            if (quarterWrapper) quarterWrapper.style.display = 'inline-block';
+            else timeSelectQuarter.style.display = '';
+
+            timeSelectYear.style.display = '';
+            updateQuarterOptions();
+        }
+
+        // 加载初始数据，传入选择的时间对象
+        const sel = getSelectedTime();
+        if (sel && sel.value) {
+            currentDataTime = sel.quarter ? `${sel.value.split('-')[0]}年${sel.quarter}` : sel.value;
+            updateAllViewData(sel);
+        } else {
+            // 如果没有选择时间，使用当前年份的默认数据
+            const defaultTime = { type: 'year', value: new Date().getFullYear().toString() };
+            currentDataTime = defaultTime.value;
+            updateAllViewData(defaultTime);
+        }
+    };
+</script>
+</body>
+</html>

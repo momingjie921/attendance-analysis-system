@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据导入 - 考勤数据分析系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fontawesome/css/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}">
+    <style>
+        /* 数据导入页专属样式 */
+        .import-card {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 32px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin: 0 auto;
+        }
+
+        .import-card h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .upload-area {
+            display: block;
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 24px;
+            cursor: pointer;
+            min-height: 200px; /* 保证高度 */
+        }
+
+        .upload-area::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px dashed #E5E7EB;
+            border-radius: 8px;
+            transition: border-color 0.2s ease;
+        }
+
+        .upload-area-content {
+            position: relative;
+            z-index: 1;
+            padding: 48px 24px;
+            text-align: center;
+        }
+
+        .upload-area:hover::before {
+            border-color: #3B82F6;
+        }
+
+        .upload-area-content i {
+            font-size: 48px;
+            color: #6B7280;
+            margin-bottom: 16px;
+            transition: color 0.2s ease;
+        }
+
+        .upload-area:hover .upload-area-content i {
+            color: #3B82F6;
+        }
+
+        .upload-area-content p {
+            font-size: 14px;
+            color: #6B7280;
+            margin-bottom: 8px;
+            transition: color 0.2s ease;
+        }
+
+        .upload-area:hover .upload-area-content p {
+            color: #1A365D;
+        }
+
+        .upload-area.drag-over::before {
+            border-color: #3B82F6;
+            background-color: rgba(59, 130, 246, 0.05);
+        }
+
+        .upload-area.drag-over .upload-area-content i {
+            color: #3B82F6;
+            transform: scale(1.1);
+        }
+
+        .upload-area.drag-over .upload-area-content p {
+            color: #1A365D;
+            font-weight: 500;
+        }
+
+        .upload-area-content .tip {
+            font-size: 12px;
+            color: #9CA3AF;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .field-map {
+            background-color: #F9FAFB;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 24px;
+            border: 1px solid #E5E7EB;
+        }
+
+        .field-map h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 16px;
+        }
+
+        .field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+
+        .field-row label {
+            font-size: 13px;
+            color: #6B7280;
+            align-self: center;
+        }
+
+        .select-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        .field-row select {
+            padding: 8px 12px;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            font-size: 13px;
+            width: 100%;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding-right: 30px;
+            background-color: #fff;
+            transition: border-color 0.2s ease;
+        }
+
+        .field-row select:hover {
+            border-color: #9CA3AF;
+        }
+
+        .select-wrapper::after {
+            content: "";
+            border: 4px solid transparent;
+            border-top-color: #6B7280;
+            border-bottom: none;
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-top: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .import-card {
+                padding: 24px 16px;
+                max-width: 100%;
+            }
+
+            .field-row {
+                grid-template-columns: 1fr;
+            }
+
+            .btn-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .upload-area-content {
+                padding: 24px 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fa-solid fa-clock"></i> 考勤管理系统</h2>
+        </div>
+        <ul class="sidebar-menu">
+            <li><a href="/admin/dashboard"><i class="fa-solid fa-tachometer-alt"></i> 数据总览</a></li>
+            <li><a href="/admin/attendance-warning"><i class="fa-solid fa-bell"></i> 考勤预警</a></li>
+            <li><a href="/admin/leave-approval"><i class="fa-solid fa-check-to-slot"></i> 请假审批</a></li>
+            <li><a href="/admin/data-import" class="active"><i class="fa-solid fa-file-excel"></i> 数据导入</a></li>
+            <li><a href="/admin/employee-management"><i class="fa-solid fa-users"></i> 员工管理</a></li>
+            <li><a href="/admin/department-management"><i class="fa-solid fa-building"></i> 部门管理</a></li>
+            <li><a href="/admin/rule-config"><i class="fa-solid fa-cog"></i> 规则配置</a></li>
+            <li><a href="/admin/holiday-calendar"><i class="fa-solid fa-calendar-days"></i> 节假日管理</a></li>
+            <li><a href="/admin/data-backup"><i class="fa-solid fa-database"></i> 数据备份</a></li>
+            <li><a href="/logout"><i class="fa-solid fa-sign-out-alt"></i> 退出登录</a></li>
+        </ul>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <div class="header">
+            <h1 class="header-title">数据导入</h1>
+            <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name={{ name[0] }}&background=1A365D&color=fff&rounded=true&bold=true&font-size=0.6" alt="Avatar">
+                <span>{{ name }}（{{ session.role }}）</span>
+            </div>
+        </div>
+
+        <div class="import-card">
+            <h3>批量导入考勤数据</h3>
+
+            <!-- 文件上传区域 -->
+            <label for="fileInput" class="upload-area">
+                <div class="upload-area-content">
+                    <i class="fa-solid fa-cloud-upload"></i>
+                    <p>点击或拖拽文件至此处上传</p>
+                    <p class="tip">支持格式：Excel (.xlsx/.xls)、CSV (.csv) | 单文件最大10MB</p>
+                </div>
+                <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" multiple>
+            </label>
+
+            <!-- 字段映射 -->
+            <div class="field-map">
+                <h4>字段映射配置（自动识别后可调整）</h4>
+                <div class="field-row">
+                    <label>系统字段：姓名</label>
+                    <div class="select-wrapper">
+                        <select>
+                            <option value="姓名">文件字段：姓名</option>
+                            <option value="name">文件字段：name</option>
+                            <option value="username">文件字段：用户名</option>
+                            <option value="emp_name">文件字段：员工姓名</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field-row">
+                    <label>系统字段：部门</label>
+                    <div class="select-wrapper">
+                        <select>
+                            <option value="部门">文件字段：部门</option>
+                            <option value="dept">文件字段：dept</option>
+                            <option value="department">文件字段：所属部门</option>
+                            <option value="dept_name">文件字段：部门名称</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field-row">
+                    <label>系统字段：上班打卡时间</label>
+                    <div class="select-wrapper">
+                        <select>
+                            <option value="上班打卡时间">文件字段：上班打卡时间</option>
+                            <option value="check_in">文件字段：check_in</option>
+                            <option value="in_time">文件字段：签到时间</option>
+                            <option value="start_time">文件字段：上班时间</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field-row">
+                    <label>系统字段：下班打卡时间</label>
+                    <div class="select-wrapper">
+                        <select>
+                            <option value="下班打卡时间">文件字段：下班打卡时间</option>
+                            <option value="check_out">文件字段：check_out</option>
+                            <option value="out_time">文件字段：签退时间</option>
+                            <option value="end_time">文件字段：下班时间</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field-row">
+                    <label>系统字段：异常标识（可选）</label>
+                    <div class="select-wrapper">
+                        <select>
+                            <option value="异常标识">文件字段：异常标识</option>
+                            <option value="abnormal_flag">文件字段：abnormal_flag</option>
+                            <option value="status">文件字段：状态</option>
+                            <option value="flag">文件字段：标记</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="btn-group">
+                <button class="btn btn-secondary" id="download-template-btn"><i class="fa-solid fa-download"></i> 下载模板</button>
+                <button class="btn btn-primary"><i class="fa-solid fa-upload"></i> 开始导入</button>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- 引入通用模态框 -->
+{% include 'includes/_modals.html' %}
+
+<!-- 引入通用JS -->
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+
+<script>
+    // 页面逻辑
+
+    function resetUploadArea() {
+        document.getElementById('fileInput').value = '';
+        
+        const uploadText = document.querySelector('.upload-area-content p');
+        if (uploadText) {
+            uploadText.textContent = '点击或拖拽文件至此处上传';
+            uploadText.style.color = '#6B7280';
+            uploadText.style.fontWeight = 'normal';
+        }
+        
+        const uploadIcon = document.querySelector('.upload-area-content i');
+        if (uploadIcon) {
+            uploadIcon.className = 'fa-solid fa-cloud-upload';
+            uploadIcon.style.color = '#6B7280';
+        }
+
+        const selects = document.querySelectorAll('.field-row select');
+        selects.forEach(sel => {
+            sel.innerHTML = '<option value="">请先上传文件...</option>';
+            sel.disabled = false;
+        });
+    }
+
+    // 拖拽上传逻辑
+    const uploadArea = document.querySelector('.upload-area');
+    const fileInput = document.getElementById('fileInput');
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, unhighlight, false);
+    });
+
+    function highlight(e) {
+        uploadArea.classList.add('drag-over');
+    }
+
+    function unhighlight(e) {
+        uploadArea.classList.remove('drag-over');
+    }
+
+    uploadArea.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+
+        if (files.length > 0) {
+            fileInput.files = files;
+            const event = new Event('change');
+            fileInput.dispatchEvent(event);
+        }
+    }
+// 文件上传选择事件
+    document.getElementById('fileInput').addEventListener('change', function (e) {
+        const files = e.target.files;
+        // 只要有文件操作，就重置按钮状态，防止死锁
+        const btn = document.querySelector('.btn-primary');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-upload"></i> 开始导入';
+            btn.style.backgroundColor = '';
+        }
+
+        if (files.length > 0) {
+            const fileName = files[0].name;
+            const validExtensions = ['.xlsx', '.xls', '.csv'];
+            const fileExt = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
+
+            if (!validExtensions.includes(fileExt)) {
+                 showModal('不支持的文件格式！仅支持 Excel (.xlsx/.xls) 或 CSV (.csv)', 'error');
+                 resetUploadArea();
+                 return;
+            }
+
+            const uploadText = document.querySelector('.upload-area-content p');
+            if (uploadText) {
+                uploadText.textContent = `已选择文件：${fileName}`;
+                uploadText.style.color = '#1A365D';
+                uploadText.style.fontWeight = '500';
+            }
+            const uploadIcon = document.querySelector('.upload-area-content i');
+            if (uploadIcon) {
+                uploadIcon.className = 'fa-solid fa-file-excel';
+                uploadIcon.style.color = '#10B981';
+            }
+            
+            analyzeFile(files[0]);
+        } else {
+            resetUploadArea();
+        }
+    });
+
+    function analyzeFile(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const selects = document.querySelectorAll('.field-row select');
+        selects.forEach(sel => sel.disabled = true);
+        
+        fetch('/api/import/analyze', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(res => {
+            if (res.code === 200) {
+                const columns = res.data.columns;
+                const mapping = res.data.mapping;
+                updateSelectOptions(columns, mapping);
+                showModal(`已成功解析文件列名，并自动匹配字段映射`, 'success');
+            } else {
+                showModal(`解析文件失败: ${res.msg}`, 'error');
+                resetUploadArea();
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            showModal('解析文件时发生网络错误', 'error');
+            resetUploadArea();
+        })
+        .finally(() => {
+            selects.forEach(sel => sel.disabled = false);
+        });
+    }
+
+    function updateSelectOptions(columns, mapping) {
+        const selects = document.querySelectorAll('.field-row select');
+        const keys = ['name', 'dept', 'check_in', 'check_out', 'abnormal_flag'];
+        
+        selects.forEach((select, index) => {
+            const key = keys[index];
+            const suggestedVal = mapping[key];
+            
+            select.innerHTML = '';
+            
+            columns.forEach(col => {
+                const option = document.createElement('option');
+                option.value = col;
+                option.textContent = `文件字段：${col}`;
+                select.appendChild(option);
+            });
+            
+            if (suggestedVal) {
+                select.value = suggestedVal;
+            } else {
+                 const defaultOption = document.createElement('option');
+                 defaultOption.value = '';
+                 defaultOption.textContent = '请选择...';
+                 select.insertBefore(defaultOption, select.firstChild);
+                 select.value = '';
+            }
+        });
+    }
+
+    document.querySelector('.btn-primary').addEventListener('click', function () {
+        handleImport();
+    });
+
+    function handleImport(create_new = null) {
+        const fileInput = document.getElementById('fileInput');
+        if (fileInput.files.length === 0) {
+            showModal('请先选择要导入的文件！', 'warning');
+            return;
+        }
+
+        const btn = document.querySelector('.btn-primary');
+        const originalContent = '<i class="fa-solid fa-upload"></i> 开始导入';
+        
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        
+        const selects = document.querySelectorAll('.field-row select');
+        formData.append('name', selects[0].value);
+        formData.append('dept', selects[1].value);
+        formData.append('check_in', selects[2].value);
+        formData.append('check_out', selects[3].value);
+        formData.append('abnormal_flag', selects[4].value);
+
+        if (create_new !== null) {
+            formData.append('create_new', create_new);
+        }
+
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 处理中...';
+        btn.disabled = true;
+
+        fetch('/api/import/attendance', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.code === 200) {
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> 导入成功';
+                btn.style.backgroundColor = '#10B981';
+                
+                let msg = `成功导入 ${data.data.success} 条数据`;
+                if (data.data.skipped > 0) {
+                    msg += `，跳过 ${data.data.skipped} 条（因涉及新员工/部门）`;
+                }
+                if (data.data.fail > 0) {
+                    msg += `，失败 ${data.data.fail} 条`;
+                    if (data.data.errors.length > 0) {
+                        msg += '<br>错误示例：<br>' + data.data.errors.join('<br>');
+                    }
+                }
+                showModal(msg, data.data.fail > 0 ? 'warning' : 'success');
+                resetUploadArea();
+                
+            } else if (data.code === 202) {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                
+                const newEmps = data.data.new_employees.join(', ');
+                const newDepts = data.data.new_departments.join(', ');
+                const empCount = data.data.new_emp_count;
+                const deptCount = data.data.new_dept_count;
+                
+                let confirmMsg = '检测到以下新数据：<br>';
+                if (empCount > 0) confirmMsg += `<strong>新员工 (${empCount}人):</strong> ${newEmps}<br>`;
+                if (deptCount > 0) confirmMsg += `<strong>新部门 (${deptCount}个):</strong> ${newDepts}<br>`;
+                confirmMsg += '<br>是否自动创建并导入这些数据？<br><span style="font-size:12px;color:#666">选择“否”将跳过这些记录</span>';
+                
+                showConfirmModal(confirmMsg, 
+                    () => handleImport('true'),
+                    () => handleImport('false')
+                );
+                return;
+                
+            } else {
+                showModal(data.msg || '导入失败', 'error');
+                btn.innerHTML = originalContent;
+                btn.style.backgroundColor = '';
+                btn.disabled = false;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showModal('请求失败，请稍后重试', 'error');
+            btn.innerHTML = originalContent;
+            btn.style.backgroundColor = '';
+            btn.disabled = false;
+        })
+        .finally(() => {
+            if (btn.disabled && btn.innerHTML.includes('处理中')) {
+                 btn.disabled = false;
+                 btn.innerHTML = originalContent;
+                 btn.style.backgroundColor = '';
+            }
+            if (btn.innerHTML.includes('成功')) {
+                setTimeout(() => {
+                    btn.innerHTML = originalContent;
+                    btn.style.backgroundColor = '';
+                    btn.disabled = false;
+                    resetUploadArea();
+                }, 3000);
+            }
+        });
+    }
+
+    document.getElementById('download-template-btn').addEventListener('click', function () {
+        window.location.href = '/api/export?type=import_template';
+    });
+</script>
+</body>
+</html>

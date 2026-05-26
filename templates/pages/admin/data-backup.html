@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据备份 - 考勤数据分析系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fontawesome/css/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}">
+    <style>
+        /* 备份页专属样式 */
+        .backup-action {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .backup-info {
+            flex: 1;
+        }
+
+        .backup-info h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 8px;
+        }
+
+        .backup-info p {
+            font-size: 14px;
+            color: #6B7280;
+            max-width: 600px;
+        }
+
+        .backup-progress {
+            width: 100%;
+            max-width: 600px;
+            margin-top: 12px;
+        }
+
+        .progress-bar-bg {
+            height: 8px;
+            background-color: #F3F4F6;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 4px;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background-color: #3B82F6;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            font-size: 12px;
+            color: #6B7280;
+            display: block;
+            text-align: right;
+        }
+
+        @media (max-width: 768px) {
+            .backup-action {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .backup-progress {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fa-solid fa-clock"></i> 考勤管理系统</h2>
+        </div>
+        <ul class="sidebar-menu">
+            <li><a href="/admin/dashboard">
+                <i class="fa-solid fa-tachometer-alt"></i> 数据总览
+            </a></li>
+            <li><a href="/admin/attendance-warning">
+                <i class="fa-solid fa-bell"></i> 考勤预警
+            </a></li>
+            <li><a href="/admin/leave-approval">
+                <i class="fa-solid fa-check-to-slot"></i> 请假审批
+            </a></li>
+            <li><a href="/admin/data-import">
+                <i class="fa-solid fa-file-excel"></i> 数据导入
+            </a></li>
+            <li><a href="/admin/employee-management">
+                <i class="fa-solid fa-users"></i> 员工管理
+            </a></li>
+            <li><a href="/admin/department-management">
+                <i class="fa-solid fa-building"></i> 部门管理
+            </a></li>
+            <li><a href="/admin/rule-config">
+                <i class="fa-solid fa-cog"></i> 规则配置
+            </a></li>
+            <li><a href="/admin/holiday-calendar">
+                <i class="fa-solid fa-calendar-days"></i> 节假日管理
+            </a></li>
+            <li><a href="/admin/data-backup" class="active">
+                <i class="fa-solid fa-database"></i> 数据备份
+            </a></li>
+            <li><a href="/logout">
+                <i class="fa-solid fa-sign-out-alt"></i> 退出登录
+            </a></li>
+        </ul>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <div class="header">
+            <h1 class="header-title">数据备份与恢复</h1>
+            <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name={{ name[0] }}&background=1A365D&color=fff&rounded=true&bold=true&font-size=0.6" alt="Avatar">
+                <span>{{ name }}（{{ session.role }}）</span>
+            </div>
+        </div>
+
+        <!-- 备份操作区 -->
+        <div class="backup-action">
+            <div class="backup-info">
+                <h3>手动备份数据</h3>
+                <p>
+                    系统默认每日凌晨2点自动备份数据，保留最近30天备份记录。<br>手动备份将立即生成全量数据备份文件，建议在重要操作前执行手动备份。
+                </p>
+                <!-- 备份进度条容器 -->
+                <div class="backup-progress" id="backupProgress" style="display: none;">
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+                    </div>
+                    <span class="progress-text" id="progressText">0%</span>
+                </div>
+            </div>
+            <button class="btn btn-primary" id="backupBtn">
+                <i class="fa-solid fa-database"></i> 立即备份
+            </button>
+        </div>
+
+        <!-- 备份记录列表 -->
+        <div class="table-card">
+            <table class="data-table">
+                <thead>
+                <tr>
+                    <th>备份编号</th>
+                    <th>备份时间</th>
+                    <th>备份大小</th>
+                    <th>备份类型</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="backupTableBody">
+                <!-- 数据将通过JS动态加载 -->
+                </tbody>
+            </table>
+        </div>
+    </main>
+</div>
+
+<!-- 引入通用模态框 -->
+{% include 'includes/_modals.html' %}
+
+<!-- 引入通用JS -->
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+
+<script>
+    // 获取备份列表
+    function fetchBackups() {
+        const tbody = document.getElementById('backupTableBody');
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">加载中...</td></tr>';
+
+        fetch('/api/backups/list')
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    renderBackups(data.data);
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:red;">加载失败: ${data.msg}</td></tr>`;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:red;">加载出错，请重试</td></tr>';
+            });
+    }
+
+    function renderBackups(backups) {
+        const tbody = document.getElementById('backupTableBody');
+        tbody.innerHTML = '';
+
+        if (backups.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">暂无备份记录</td></tr>';
+            return;
+        }
+
+        backups.forEach(backup => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${backup.filename}</td>
+                <td>${backup.time}</td>
+                <td>${backup.size}</td>
+                <td>${backup.type}</td>
+                <td><span class="status-badge badge-success">${backup.status}</span></td>
+                <td class="action-btn">
+                    <button class="download-btn" onclick="downloadBackup('${backup.filename}')"><i class="fa-solid fa-download"></i> 下载</button>
+                    <button class="restore-btn" onclick="restoreBackup('${backup.filename}')"><i class="fa-solid fa-rotate-left"></i> 恢复</button>
+                    <button class="delete-btn" onclick="deleteBackup('${backup.filename}')"><i class="fa-solid fa-trash"></i> 删除</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // 页面加载时获取列表
+    document.addEventListener('DOMContentLoaded', fetchBackups);
+
+    // 立即备份（带进度条）
+    document.getElementById('backupBtn').addEventListener('click', function () {
+        showConfirmModal('确定要执行手动备份吗？备份过程中请不要关闭页面！', function() {
+            const btn = document.getElementById('backupBtn');
+            const progressContainer = document.getElementById('backupProgress');
+            const progressBarFill = document.getElementById('progressBarFill');
+            const progressText = document.getElementById('progressText');
+
+            // 初始化进度条
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 备份中...';
+            btn.disabled = true;
+            progressContainer.style.display = 'block';
+            progressBarFill.style.width = '0%';
+            progressText.textContent = '0%';
+
+            // 模拟进度条动画（假进度，为了提升体验）
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                if (progress < 90) {
+                    progress += Math.floor(Math.random() * 5) + 1;
+                    progressBarFill.style.width = `${progress}%`;
+                    progressText.textContent = `${progress}%`;
+                }
+            }, 300);
+
+            // 发送备份请求
+            fetch('/api/backups/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                clearInterval(progressInterval);
+                if (data.code === 200) {
+                    progressBarFill.style.width = '100%';
+                    progressText.textContent = '100%';
+                    setTimeout(() => {
+                        showModal('手动备份完成！', 'success');
+                        fetchBackups(); // 刷新列表
+                    }, 500);
+                } else {
+                    showModal('备份失败: ' + data.msg, 'error');
+                }
+            })
+            .catch(error => {
+                clearInterval(progressInterval);
+                showModal('备份请求出错: ' + error.message, 'error');
+            })
+            .finally(() => {
+                setTimeout(() => {
+                    // 恢复按钮状态
+                    btn.innerHTML = '<i class="fa-solid fa-database"></i> 立即备份';
+                    btn.disabled = false;
+                    progressContainer.style.display = 'none';
+                }, 1000);
+            });
+        });
+    });
+
+    // 下载备份
+    function downloadBackup(filename) {
+        // 直接打开下载链接
+        window.open(`/api/backups/download/${filename}`, '_blank');
+    }
+
+    // 恢复备份
+    function restoreBackup(filename) {
+        showConfirmModal(`警告：恢复备份 [${filename}] 将覆盖当前所有数据！\n请确保已备份最新数据，是否继续？`, function() {
+            showModal('备份恢复中，系统将在完成后自动刷新页面...', 'info');
+            
+            fetch('/api/backups/restore', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ filename: filename })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    showModal('数据恢复成功！页面即将刷新', 'success');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    showModal('恢复失败: ' + data.msg, 'error');
+                }
+            })
+            .catch(error => {
+                showModal('恢复请求出错: ' + error.message, 'error');
+            });
+        });
+    }
+
+    // 删除备份
+    function deleteBackup(filename) {
+        showConfirmModal(`确定要删除备份文件 [${filename}] 吗？删除后无法恢复！`, function() {
+            fetch('/api/backups/delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ filename: filename })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.code === 200) {
+                    showModal('备份记录删除成功！', 'success');
+                    fetchBackups(); // 刷新列表
+                } else {
+                    showModal('删除失败: ' + data.msg, 'error');
+                }
+            })
+            .catch(error => {
+                showModal('删除请求出错: ' + error.message, 'error');
+            });
+        });
+    }
+</script>
+</body>
+</html>

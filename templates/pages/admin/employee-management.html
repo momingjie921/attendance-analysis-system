@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>员工管理 - 考勤数据分析系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fontawesome/css/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}?v=2.0">
+    <style>
+        /* 员工管理专属样式 (如果有) */
+        /* 下拉框容器微调 */
+        .select-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+        .filter-bar .select-wrapper {
+            width: auto;
+        }
+        .select-wrapper::after {
+            content: "";
+            border: 5px solid transparent;
+            border-top-color: #6B7280;
+            border-bottom: none;
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            z-index: 2;
+        }
+        .filter-bar {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .filter-select {
+            padding: 8px 30px 8px 16px;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            background: #FFFFFF;
+            font-size: 14px;
+            min-width: 150px;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+        }
+        .emp-name-cell {
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fa-solid fa-clock"></i> 考勤管理系统</h2>
+        </div>
+        <ul class="sidebar-menu">
+            <li><a href="/admin/dashboard">
+                <i class="fa-solid fa-tachometer-alt"></i> 数据总览
+            </a></li>
+            <li><a href="/admin/attendance-warning">
+                <i class="fa-solid fa-bell"></i> 考勤预警
+            </a></li>
+            <li><a href="/admin/leave-approval">
+                <i class="fa-solid fa-check-to-slot"></i> 请假审批
+            </a></li>
+            <li><a href="/admin/data-import">
+                <i class="fa-solid fa-file-excel"></i> 数据导入
+            </a></li>
+            <li><a href="/admin/employee-management" class="active">
+                <i class="fa-solid fa-users"></i> 员工管理
+            </a></li>
+            <li><a href="/admin/department-management">
+                <i class="fa-solid fa-building"></i> 部门管理
+            </a></li>
+            <li><a href="/admin/rule-config">
+                <i class="fa-solid fa-cog"></i> 规则配置
+            </a></li>
+            <li><a href="/admin/holiday-calendar">
+                <i class="fa-solid fa-calendar-days"></i> 节假日管理
+            </a></li>
+            <li><a href="/admin/data-backup">
+                <i class="fa-solid fa-database"></i> 数据备份
+            </a></li>
+            <li><a href="/logout">
+                <i class="fa-solid fa-sign-out-alt"></i> 退出登录
+            </a></li>
+        </ul>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <div class="header">
+            <h1 class="header-title">员工管理</h1>
+            <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name={{ name[0] }}&background=1A365D&color=fff&rounded=true&bold=true&font-size=0.6" alt="Avatar">
+                <span>{{ name }}（{{ session.role }}）</span>
+            </div>
+        </div>
+
+        <!-- 搜索和新增按钮 -->
+        <div class="search-bar">
+            <div class="search-input">
+                <i class="fa-solid fa-search"></i>
+                <input type="text" id="searchInput" placeholder="搜索员工姓名/工号/手机号/邮箱">
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-primary" id="addEmpBtn">
+                    <i class="fa-solid fa-plus"></i> 新增员工
+                </button>
+            </div>
+        </div>
+
+        <!-- 筛选栏 -->
+        <div class="filter-bar">
+            <div class="select-wrapper">
+                <select id="deptFilter" class="filter-select">
+                    <option value="">全部部门</option>
+                </select>
+            </div>
+            <div class="select-wrapper">
+                <select id="statusFilter" class="filter-select">
+                    <option value="">全部状态</option>
+                    <option value="1">在职</option>
+                    <option value="0">离职</option>
+                </select>
+            </div>
+            <div class="select-wrapper">
+                <select id="hasAccountFilter" class="filter-select">
+                    <option value="">账户状态</option>
+                    <option value="1">有账户</option>
+                    <option value="0">无账户</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- 员工列表 -->
+        <div class="table-card">
+            <table class="data-table">
+                <thead>
+                <tr>
+                    <th>员工编号</th>
+                    <th>员工姓名</th>
+                    <th>所属部门</th>
+                    <th>手机号</th>
+                    <th>邮箱</th>
+                    <th>入职时间</th>
+                    <th>状态</th>
+                    <th style="min-width: 240px;">操作</th>
+                </tr>
+                </thead>
+                <tbody id="employeeTableBody">
+                <tr class="loading-row">
+                    <td colspan="8" class="loading" style="text-align: center; padding: 40px 0;">
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                        <div>正在加载员工数据...</div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+
+            <!-- 分页 -->
+            <div class="pagination" id="paginationContainer">
+                <!-- 分页将通过JS动态生成 -->
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- 新增/编辑员工模态框 -->
+<div class="modal-overlay" id="empModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="modalTitle">新增员工</h3>
+            <i class="fa-solid fa-xmark modal-close" onclick="closeEmpModal()"></i>
+        </div>
+        <form id="empForm">
+            <input type="hidden" id="empId" value="">
+
+            <div class="form-group">
+                <label for="empCode" class="required">员工编号（员工编号须唯一，建议格式：EMP2025001）</label>
+                <input type="text" id="empCode" class="form-control" placeholder="请输入员工编号" required>
+            </div>
+
+            <div class="form-group">
+                <label for="empName" class="required">员工姓名</label>
+                <input type="text" id="empName" class="form-control" placeholder="请输入员工姓名" required>
+            </div>
+
+            <div class="form-group">
+                <label for="deptSelect" class="required">所属部门</label>
+                <div class="select-wrapper">
+                    <select id="deptSelect" class="form-control" required>
+                        <option value="">请选择部门</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="empPhone">手机号</label>
+                <input type="tel" id="empPhone" class="form-control" placeholder="请输入手机号">
+            </div>
+
+            <div class="form-group">
+                <label for="empEmail">邮箱</label>
+                <input type="email" id="empEmail" class="form-control" placeholder="请输入邮箱">
+            </div>
+
+            <div class="form-group">
+                <label for="entryTime">入职时间</label>
+                <input type="date" id="entryTime" class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label for="empStatus">状态</label>
+                <div class="select-wrapper">
+                    <select id="empStatus" class="form-control">
+                        <option value="1">在职</option>
+                        <option value="0">离职</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 用户账户创建部分 -->
+            <div class="form-group">
+                <label style="display: flex;justify-items: center;align-items: center">
+                    <input type="checkbox" id="createUserAccount">
+                    <span style="margin-left: 10px">创建登录账户（勾选后为此员工创建系统登录账户）</span>
+                </label>
+            </div>
+
+            <div id="userAccountFields" style="display: none;">
+                <div class="form-group">
+                    <label for="username" class="required">登录账号（默认为员工编号）</label>
+                    <input type="text" id="username" class="form-control" placeholder="请输入登录账号">
+                </div>
+
+                <div class="form-group">
+                    <label for="password">初始密码（默认密码：123456）</label>
+                    <input type="password" id="password" class="form-control" value="123456">
+                </div>
+
+                <div class="form-group">
+                    <label for="userRole">用户角色</label>
+                    <div class="select-wrapper">
+                        <select id="userRole" class="form-control">
+                            <option value="employee">普通员工</option>
+                            <option value="manager">部门经理</option>
+                            <option value="admin">系统管理员</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeEmpModal()">取消</button>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Include Shared Modals -->
+{% include 'includes/_modals.html' %}
+
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+<script>
+    // 全局变量
+    let currentPage = 1;
+    let perPage = 10;
+    let totalPages = 1;
+    let departments = [];
+    let currentEmployees = [];
+    // 编辑时的原始数据，用于检测是否修改
+    let originalEmpData = null;
+
+    // 删除相关变量
+    let pendingDeleteEmpId = null;
+    let pendingDeleteEmpName = '';
+    let pendingNewStatus = null; // 用于逻辑删除/恢复
+
+    // 页面加载时初始化
+    document.addEventListener('DOMContentLoaded', function () {
+        loadDepartments();
+        loadEmployeeList();
+
+        // 搜索框实时搜索
+        document.getElementById('searchInput').addEventListener('input', function () {
+            currentPage = 1;
+            loadEmployeeList();
+        });
+
+        // 部门筛选
+        document.getElementById('deptFilter').addEventListener('change', function () {
+            currentPage = 1;
+            loadEmployeeList();
+        });
+
+        // 状态筛选
+        document.getElementById('statusFilter').addEventListener('change', function () {
+            currentPage = 1;
+            loadEmployeeList();
+        });
+
+        // 账户状态筛选
+        document.getElementById('hasAccountFilter').addEventListener('change', function () {
+            currentPage = 1;
+            loadEmployeeList();
+        });
+
+        // 创建用户账户复选框
+        document.getElementById('createUserAccount').addEventListener('change', function () {
+            const fields = document.getElementById('userAccountFields');
+            fields.style.display = this.checked ? 'block' : 'none';
+
+            // 如果选中且用户名为空，自动填充员工编号
+            if (this.checked) {
+                const empCode = document.getElementById('empCode').value;
+                const username = document.getElementById('username');
+                if (username && !username.value && empCode) {
+                    username.value = empCode;
+                }
+            }
+        });
+
+        // 员工编号变更时同步到用户名
+        document.getElementById('empCode').addEventListener('input', function () {
+            const username = document.getElementById('username');
+            const createAccount = document.getElementById('createUserAccount');
+            if (createAccount.checked && username && !username.value) {
+                username.value = this.value;
+            }
+        });
+        
+        // 点击模态框外部关闭
+        document.getElementById('empModal').addEventListener('click', function(e) {
+            if (e.target === this) closeEmpModal();
+        });
+    });
+
+    // 加载部门列表
+    function loadDepartments() {
+        fetch('/api/employees/departments', {credentials: 'same-origin'})
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(result => {
+                if (result.code === 200) {
+                    departments = result.data.departments;
+
+                    // 填充部门筛选下拉框
+                    const deptFilter = document.getElementById('deptFilter');
+                    deptFilter.innerHTML = '<option value="">全部部门</option>';
+                    departments.forEach(dept => {
+                        const option = document.createElement('option');
+                        option.value = dept.dept_id;
+                        option.textContent = dept.dept_name;
+                        deptFilter.appendChild(option);
+                    });
+
+                    // 填充模态框中的部门下拉框
+                    const deptSelect = document.getElementById('deptSelect');
+                    deptSelect.innerHTML = '<option value="">请选择部门</option>';
+                    departments.forEach(dept => {
+                        const option = document.createElement('option');
+                        option.value = dept.dept_id;
+                        option.textContent = dept.dept_name;
+                        deptSelect.appendChild(option);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('加载部门失败:', error);
+                showModal('加载部门列表失败：' + error.message, 'error');
+            });
+    }
+
+    // 加载员工列表
+    function loadEmployeeList() {
+        const search = document.getElementById('searchInput').value;
+        const deptId = document.getElementById('deptFilter').value;
+        const status = document.getElementById('statusFilter').value;
+        const hasAccount = document.getElementById('hasAccountFilter').value;
+
+        let url = `/api/employees/list?page=${currentPage}&per_page=${perPage}&search=${encodeURIComponent(search)}`;
+
+        if (deptId) url += `&dept_id=${deptId}`;
+        if (status !== '') url += `&status=${status}`;
+        if (hasAccount !== '') url += `&has_account=${hasAccount}`;
+
+        // 显示加载状态
+        const tbody = document.getElementById('employeeTableBody');
+        tbody.innerHTML = `
+            <tr class="loading-row">
+                <td colspan="8" class="loading" style="text-align: center; padding: 40px 0;">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <div>正在加载员工数据...</div>
+                </td>
+            </tr>
+        `;
+
+        fetch(url, {credentials: 'same-origin'})
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(result => {
+                if (result.code === 200) {
+                    currentEmployees = result.data.items || [];
+                    renderEmployeeTable(result.data.items || []);
+                    renderPagination(result.data);
+                } else {
+                    showModal('获取员工列表失败：' + result.msg, 'error');
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="8" style="text-align: center; padding: 40px 0; color: #EF4444;">
+                                <i class="fa-solid fa-circle-exclamation" style="font-size: 32px; margin-bottom: 16px;"></i>
+                                <div>加载失败：${result.msg}</div>
+                            </td>
+                        </tr>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('加载员工列表失败:', error);
+                showModal('网络连接失败: ' + error.message, 'error');
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" style="text-align: center; padding: 40px 0; color: #EF4444;">
+                            <i class="fa-solid fa-wifi" style="font-size: 32px; margin-bottom: 16px;"></i>
+                            <div>网络连接失败，请检查网络后重试</div>
+                        </td>
+                    </tr>
+                `;
+            });
+    }
+
+    // 渲染员工表格
+    function renderEmployeeTable(employees) {
+        const tbody = document.getElementById('employeeTableBody');
+
+        // 安全检查：确保employees是数组
+        if (!employees || !Array.isArray(employees)) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" style="text-align: center; padding: 40px 0; color: #EF4444;">
+                        <i class="fa-solid fa-exclamation-triangle" style="font-size: 32px; margin-bottom: 16px;"></i>
+                        <div>数据格式错误，请稍后重试</div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        if (employees.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" style="text-align: center; padding: 60px 0; color: #9CA3AF;">
+                        <i class="fa-solid fa-user-slash" style="font-size: 48px; margin-bottom: 16px; color: #D1D5DB;"></i>
+                        <div style="font-size: 14px;">暂无员工数据</div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        let html = '';
+        employees.forEach(emp => {
+            const isActive = emp.status === 1;
+            html += `
+                <tr data-emp-id="${emp.emp_id}">
+                    <td>${emp.emp_code || '-'}</td>
+                    <td class="emp-name-cell">${emp.emp_name || '-'}</td>
+                    <td>${emp.dept_name || '-'}</td>
+                    <td>${emp.phone || '-'}</td>
+                    <td>${emp.email || '-'}</td>
+                    <td>${emp.entry_time || '-'}</td>
+                    <td>
+                        <span class="status-badge ${isActive ? 'status-active' : 'status-inactive'}">
+                            ${isActive ? '在职' : '离职'}
+                        </span>
+                    </td>
+                    <td class="action-btn">
+                        <button class="edit-btn" onclick="editEmployee(${emp.emp_id})" title="编辑员工信息">
+                            <i class="fa-solid fa-pen"></i> 编辑
+                        </button>
+
+                        ${isActive ?
+                            `<button class="delete-btn" onclick="showLogicalDeleteConfirm(${emp.emp_id}, '${emp.emp_name}', 0)" title="设为离职（逻辑删除）">
+                                <i class="fa-solid fa-user-slash"></i> 离职
+                            </button>`
+                            :
+                            `<button class="restore-btn" onclick="showLogicalDeleteConfirm(${emp.emp_id}, '${emp.emp_name}', 1)" title="恢复为在职">
+                                <i class="fa-solid fa-user-check"></i> 复职
+                            </button>`
+                        }
+
+                        <button class="delete-btn" onclick="showPermanentDeleteModal(${emp.emp_id}, '${emp.emp_name}')" style="background-color: #DC2626; color: #FFFFFF;" title="永久删除员工所有数据">
+                            <i class="fa-solid fa-trash-can"></i> 永久删除
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html;
+    }
+
+    // 渲染分页
+    function renderPagination(data) {
+        const pagination = document.getElementById('paginationContainer');
+
+        // 安全检查：确保data存在且有项，否则隐藏分页
+        if (!data || !data.items || data.items.length === 0 || data.pages <= 1) {
+            pagination.innerHTML = '';
+            return;
+        }
+
+        totalPages = data.pages; // 更新全局 totalPages
+
+        // 计算页码范围
+        let startPage = Math.max(1, currentPage - 2);
+        let endPage = Math.min(data.pages, currentPage + 2);
+
+        if (endPage - startPage < 4) {
+            if (startPage === 1) {
+                endPage = Math.min(5, data.pages);
+            } else if (endPage === data.pages) {
+                startPage = Math.max(1, data.pages - 4);
+            }
+        }
+
+        let html = `
+            <button class="pagination-btn" onclick="changePage(1)" ${currentPage === 1 ? 'disabled' : ''} title="第一页">
+                <i class="fa-solid fa-angles-left"></i>
+            </button>
+            <button class="pagination-btn" onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} title="上一页">
+                <i class="fa-solid fa-chevron-left"></i>
+            </button>
+        `;
+
+        // 页码按钮
+        for (let i = startPage; i <= endPage; i++) {
+            html += `
+                <button class="pagination-btn ${i === currentPage ? 'active' : ''}"
+                        onclick="changePage(${i})">
+                    ${i}
+                </button>
+            `;
+        }
+
+        html += `
+            <button class="pagination-btn" onclick="changePage(${currentPage + 1})" ${currentPage === data.pages ? 'disabled' : ''} title="下一页">
+                <i class="fa-solid fa-chevron-right"></i>
+            </button>
+            <button class="pagination-btn" onclick="changePage(${data.pages})" ${currentPage === data.pages ? 'disabled' : ''} title="最后一页">
+                <i class="fa-solid fa-angles-right"></i>
+            </button>
+            <span class="pagination-info">
+                第 ${currentPage} / ${data.pages} 页，共 ${data.total} 条
+            </span>
+        `;
+
+        pagination.innerHTML = html;
+    }
+
+    // 切换页码
+    function changePage(page) {
+        if (page < 1 || page > totalPages) return;
+        currentPage = page;
+        loadEmployeeList();
+    }
+
+    // 显示逻辑删除/恢复确认框
+    function showLogicalDeleteConfirm(empId, empName, newStatus) {
+        pendingDeleteEmpId = empId;
+        pendingDeleteEmpName = empName;
+        pendingNewStatus = newStatus;
+
+        const action = newStatus === 0 ? '设为离职' : '恢复为在职';
+        const description = newStatus === 0 ?
+            '此操作会将员工状态设为离职，员工将无法登录系统，但相关数据仍会保留。' :
+            '此操作会将员工状态恢复为在职，员工可以重新登录系统。';
+
+        const message = `
+            <p style="color: #111827">确定要将员工 "<strong>${empName}</strong>" ${action}吗？</p>
+            <p style="color: #4B5563; margin-top: 8px;">${description}</p>
+        `;
+        
+        const confirmType = newStatus === 0 ? 'warning' : 'primary';
+        
+        showConfirmModal(message, performLogicalDelete, () => {
+             pendingDeleteEmpId = null;
+             pendingDeleteEmpName = '';
+             pendingNewStatus = null;
+        }, {
+            confirmText: '确认',
+            confirmType: confirmType
+        });
+    }
+
+    // 显示永久删除确认框
+    function showPermanentDeleteModal(empId, empName) {
+        pendingDeleteEmpId = empId;
+        pendingDeleteEmpName = empName;
+
+        const message = `
+            <div style="padding: 4px 0;">
+                <p style="font-size: 15px; color: #111827;">
+                    确定要永久删除员工 "<strong style="color: #111827;">${empName}</strong>" 吗？
+                </p>
+                <p style="margin-top: 8px;">将删除员工所有数据，包括考勤记录、异常记录等</p>
+                <p style="color: #DC2626; font-weight: bold; margin-top: 8px;">此操作不可恢复！</p>
+            </div>
+        `;
+        
+        showConfirmModal(message, confirmPermanentDelete, () => {
+             pendingDeleteEmpId = null;
+             pendingDeleteEmpName = '';
+        }, {
+            confirmText: '永久删除',
+            confirmType: 'danger'
+        });
+    }
+
+    // 执行逻辑删除/恢复
+    function performLogicalDelete() {
+        // 保存当前操作的上下文，防止被回调清除
+        const empId = pendingDeleteEmpId;
+        const empName = pendingDeleteEmpName;
+        const newStatus = pendingNewStatus;
+
+        fetch('/api/employees/update', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                emp_id: empId,
+                status: newStatus
+            })
+        })
+            .then(response => response.json())
+            .then(result => {
+                if (result.code === 200) {
+                    const action = newStatus === 0 ? '离职' : '复职';
+                    showModal(`员工 “<strong style="color: #111827">${empName}</strong>” 已${action}！`, 'success');
+                    loadEmployeeList();
+                } else {
+                    showModal(`操作失败：${result.msg}`, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showModal('操作失败：网络错误，请稍后重试', 'error');
+            });
+    }
+
+    // 确认执行物理删除
+    function confirmPermanentDelete() {
+        // 保存当前操作的上下文
+        const empId = pendingDeleteEmpId;
+        const empName = pendingDeleteEmpName;
+
+        fetch('/api/employees/permanent-delete', {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                emp_id: empId
+            })
+        })
+            .then(response => response.json())
+            .then(result => {
+                if (result.code === 200) {
+                    showModal(`员工 “<strong style="color: #111827">${empName}</strong>” 已永久删除！`, 'success');
+                    loadEmployeeList();
+                } else {
+                    showModal(`永久删除失败：${result.msg}`, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showModal('永久删除失败：网络错误，请稍后重试', 'error');
+            });
+    }
+
+    // 打开新增员工模态框
+    document.getElementById('addEmpBtn').addEventListener('click', function () {
+        document.getElementById('modalTitle').textContent = '新增员工';
+        document.getElementById('empForm').reset();
+        document.getElementById('empId').value = '';
+        document.getElementById('createUserAccount').checked = false;
+        document.getElementById('userAccountFields').style.display = 'none';
+
+        // 生成默认员工编号
+        const date = new Date();
+        const empCode = `EMP${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(Math.floor(Math.random() * 9000) + 1000)}`;
+        document.getElementById('empCode').value = empCode;
+
+        // 设置默认入职时间为今天
+        document.getElementById('entryTime').value = date.toISOString().split('T')[0];
+
+        document.getElementById('empModal').style.display = 'flex';
+    });
+
+    // 编辑员工
+    function editEmployee(empId) {
+        // 改为直接请求详情接口，避免大数据量下前端查找不到
+        fetch(`/api/employees/detail?emp_id=${empId}`)
+            .then(response => response.json())
+            .then(result => {
+                if (result.code === 200) {
+                    const employee = result.data;
+                    if (employee) {
+                        document.getElementById('modalTitle').textContent = `编辑员工 - ${employee.emp_name}`;
+                        document.getElementById('empId').value = employee.emp_id;
+                        document.getElementById('empCode').value = employee.emp_code;
+                        document.getElementById('empName').value = employee.emp_name;
+                        document.getElementById('empPhone').value = employee.phone || '';
+                        document.getElementById('empEmail').value = employee.email || '';
+                        document.getElementById('empStatus').value = employee.status.toString();
+
+                        // 设置部门选择
+                        setTimeout(() => {
+                            document.getElementById('deptSelect').value = employee.dept_id;
+                        }, 100);
+
+                        if (employee.entry_time) {
+                            document.getElementById('entryTime').value = employee.entry_time;
+                        }
+
+                        // 检查是否有用户账户
+                        if (employee.has_account) {
+                            document.getElementById('createUserAccount').checked = true;
+                            document.getElementById('userAccountFields').style.display = 'block';
+                            document.getElementById('username').value = employee.username || employee.emp_code;
+                            document.getElementById('userRole').value = employee.user_role || 'employee';
+                        } else {
+                            document.getElementById('createUserAccount').checked = false;
+                            document.getElementById('userAccountFields').style.display = 'none';
+                        }
+                        
+                        // 保存原始数据用于对比
+                        originalEmpData = {
+                            emp_code: employee.emp_code,
+                            emp_name: employee.emp_name,
+                            dept_id: employee.dept_id,
+                            phone: employee.phone || '',
+                            email: employee.email || '',
+                            status: employee.status,
+                            entry_time: employee.entry_time || '',
+                            create_user: employee.has_account,
+                            username: employee.has_account ? (employee.username || employee.emp_code) : '',
+                            role: employee.has_account ? (employee.user_role || 'employee') : ''
+                        };
+
+                        document.getElementById('empModal').style.display = 'flex';
+                    } else {
+                        showModal('未找到员工信息', 'error');
+                    }
+                } else {
+                    showModal('获取员工信息失败：' + result.msg, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showModal('网络错误，请稍后重试', 'error');
+            });
+    }
+
+    // 关闭模态框
+    function closeEmpModal() {
+        document.getElementById('empModal').style.display = 'none';
+        document.getElementById('empForm').reset();
+    }
+
+    // 表单验证
+    function validateForm() {
+        let isValid = true;
+
+        // 重置错误状态
+        document.querySelectorAll('.form-control').forEach(input => {
+            input.classList.remove('error');
+        });
+
+        // 验证员工编号
+        const empCode = document.getElementById('empCode').value.trim();
+        if (!empCode) {
+            document.getElementById('empCode').classList.add('error');
+            isValid = false;
+        }
+
+        // 验证员工姓名
+        const empName = document.getElementById('empName').value.trim();
+        if (!empName) {
+            document.getElementById('empName').classList.add('error');
+            isValid = false;
+        }
+
+        // 验证部门
+        const deptId = document.getElementById('deptSelect').value;
+        if (!deptId) {
+            document.getElementById('deptSelect').classList.add('error');
+            isValid = false;
+        }
+
+        // 验证手机号格式
+        const phone = document.getElementById('empPhone').value.trim();
+        if (phone && !/^1[3-9]\d{9}$/.test(phone)) {
+            document.getElementById('empPhone').classList.add('error');
+            isValid = false;
+        }
+
+        // 验证邮箱格式
+        const email = document.getElementById('empEmail').value.trim();
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            document.getElementById('empEmail').classList.add('error');
+            isValid = false;
+        }
+
+        // 验证用户账户信息
+        if (document.getElementById('createUserAccount').checked) {
+            const username = document.getElementById('username').value.trim();
+            if (!username) {
+                document.getElementById('username').classList.add('error');
+                showModal('登录账号不能为空', 'error');
+                isValid = false;
+            }
+        }
+
+        return isValid;
+    }
+
+    // 表单提交
+    document.getElementById('empForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        if (!validateForm()) {
+            return;
+        }
+
+        const empId = document.getElementById('empId').value;
+        const empName = document.getElementById('empName').value.trim();
+        const createUser = document.getElementById('createUserAccount').checked;
+
+        const formData = {
+            emp_code: document.getElementById('empCode').value.trim(),
+            emp_name: empName,
+            dept_id: parseInt(document.getElementById('deptSelect').value),
+            phone: document.getElementById('empPhone').value.trim() || null,
+            email: document.getElementById('empEmail').value.trim() || null,
+            entry_time: document.getElementById('entryTime').value || null,
+            status: parseInt(document.getElementById('empStatus').value)
+        };
+
+        if (createUser) {
+            formData.create_user = true;
+            formData.username = document.getElementById('username').value.trim() || formData.emp_code;
+            formData.password = document.getElementById('password').value || '123456';
+            formData.role = document.getElementById('userRole').value;
+        }
+
+        if (empId) {
+            // 检查数据是否发生变化
+            // 处理可能的null值，转为空字符串进行比较
+            const currentPhone = formData.phone || '';
+            const currentEmail = formData.email || '';
+            const currentEntryTime = formData.entry_time || '';
+            const currentCreateUser = !!formData.create_user;
+            const currentUsername = formData.username || '';
+            const currentRole = formData.role || '';
+            
+            // 原始数据处理
+            const originalPhone = originalEmpData.phone || '';
+            const originalEmail = originalEmpData.email || '';
+            const originalEntryTime = originalEmpData.entry_time || '';
+            const originalCreateUser = !!originalEmpData.create_user;
+            const originalUsername = originalEmpData.username || '';
+            const originalRole = originalEmpData.role || '';
+            
+            const hasChanged = 
+                formData.emp_code !== originalEmpData.emp_code ||
+                formData.emp_name !== originalEmpData.emp_name ||
+                formData.dept_id !== originalEmpData.dept_id ||
+                currentPhone !== originalPhone ||
+                currentEmail !== originalEmail ||
+                formData.status !== originalEmpData.status ||
+                currentEntryTime !== originalEntryTime ||
+                currentCreateUser !== originalCreateUser ||
+                (currentCreateUser && (currentUsername !== originalUsername || currentRole !== originalRole));
+                
+            if (!hasChanged) {
+                showModal('未修改任何内容', 'warning');
+                return;
+            }
+
+            // 更新员工
+            formData.emp_id = parseInt(empId);
+
+            fetch('/api/employees/update', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.code === 200) {
+                        showModal(`员工 “ <strong style="color: #111827">${empName}</strong> ” 信息更新成功！`, 'success');
+                        closeEmpModal();
+                        loadEmployeeList();
+                    } else {
+                        showModal(`员工“${empName}”信息更新失败：${result.msg}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showModal(`员工“${empName}”更新失败：网络错误，请稍后重试`, 'error');
+                });
+        } else {
+            // 新增员工
+            fetch('/api/employees/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.code === 200) {
+                        showModal(`员工 “ <strong style="color: #111827">${empName}</strong> ” 创建成功！`, 'success');
+                        closeEmpModal();
+                        loadEmployeeList();
+                    } else {
+                        showModal(`员工“${empName}”创建失败：${result.msg}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showModal(`员工“${empName}”创建失败：网络错误，请稍后重试`, 'error');
+                });
+        }
+    });
+</script>
+</body>
+</html>

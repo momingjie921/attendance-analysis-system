@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>请假审批 - 考勤数据分析系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fontawesome/css/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}?v=2.0">
+    <style>
+        .badge-type {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            background: #F3F4F6;
+            color: #4B5563;
+        }
+        .btn-approve { background-color: #D1FAE5; color: #059669; }
+        .btn-approve:hover { background-color: #A7F3D0; }
+        .btn-reject { background-color: #FEE2E2; color: #EF4444; }
+        .btn-reject:hover { background-color: #FECACA; }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fa-solid fa-clock"></i> 考勤管理系统</h2>
+        </div>
+        <ul class="sidebar-menu">
+            {% if session.role == 'admin' %}
+            <li><a href="/admin/dashboard"><i class="fa-solid fa-tachometer-alt"></i> 数据总览</a></li>
+            <li><a href="/admin/attendance-warning"><i class="fa-solid fa-bell"></i> 考勤预警</a></li>
+            <li><a href="/admin/leave-approval" class="active"><i class="fa-solid fa-check-to-slot"></i> 请假审批</a></li>
+            <li><a href="/admin/data-import"><i class="fa-solid fa-file-excel"></i> 数据导入</a></li>
+            <li><a href="/admin/employee-management"><i class="fa-solid fa-users"></i> 员工管理</a></li>
+            <li><a href="/admin/department-management"><i class="fa-solid fa-building"></i> 部门管理</a></li>
+            <li><a href="/admin/rule-config"><i class="fa-solid fa-cog"></i> 规则配置</a></li>
+            <li><a href="/admin/holiday-calendar"><i class="fa-solid fa-calendar-days"></i> 节假日管理</a></li>
+            <li><a href="/admin/data-backup"><i class="fa-solid fa-database"></i> 数据备份</a></li>
+            {% else %}
+            <li><a href="/manager/dashboard"><i class="fa-solid fa-tachometer-alt"></i> 部门数据</a></li>
+            <li><a href="/manager/leave-approval" class="active"><i class="fa-solid fa-check-to-slot"></i> 请假审批</a></li>
+            <li><a href="/employee/leave-apply"><i class="fa-solid fa-paper-plane"></i> 请假申请</a></li>
+            <li><a href="/manager/data-import"><i class="fa-solid fa-file-excel"></i> 数据导入</a></li>
+            <li><a href="/manager/departmental-analysis"><i class="fa-solid fa-chart-bar"></i> 部门分析</a></li>
+            <li><a href="/manager/departmental-abnormal"><i class="fa-solid fa-exclamation-triangle"></i> 部门异常</a></li>
+            <li><a href="/employee/dashboard"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+            <li><a href="/employee/attendance-record"><i class="fa-solid fa-calendar-check"></i> 打卡记录</a></li>
+            <li><a href="/employee/abnormal-record"><i class="fa-solid fa-exclamation-circle"></i> 异常记录</a></li>
+            {% endif %}
+            <li><a href="/logout"><i class="fa-solid fa-sign-out-alt"></i> 退出登录</a></li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <div class="header">
+            <h1 class="header-title">请假审批中心</h1>
+            <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name={{ name[0] }}&background=1A365D&color=fff&rounded=true&bold=true&font-size=0.6" alt="Avatar">
+                <span>{{ name }}（{{ session.role }}）</span>
+            </div>
+        </div>
+
+        <div class="table-card">
+            <div class="card-header" style="margin-bottom: 20px; border-bottom: 1px solid #F3F4F6; padding-bottom: 10px;">
+                <h3 style="font-size: 16px; color: #1A365D;"><i class="fa-solid fa-hourglass-half"></i> 待审批申请</h3>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>申请人</th>
+                        <th>部门</th>
+                        <th>类型</th>
+                        <th>请假日期</th>
+                        <th>天数</th>
+                        <th>申请原因</th>
+                        <th>申请时间</th>
+                        <th style="width: 180px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="pending-list-body">
+                    <tr><td colspan="8" style="text-align: center; padding: 40px;">正在加载数据...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</div>
+
+{% include 'includes/_modals.html' %}
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+<script>
+    const typeMap = {
+        'annual': '带薪年假',
+        'sick': '带薪病假',
+        'personal': '事假',
+        'maternity': '产假/陪产假',
+        'other': '其他'
+    };
+
+    document.addEventListener('DOMContentLoaded', loadPendingLeaves);
+
+    function loadPendingLeaves() {
+        fetch('/api/leave/pending')
+            .then(res => res.json())
+            .then(res => {
+                if (res.code === 200) {
+                    renderTable(res.data);
+                }
+            });
+    }
+
+    function renderTable(list) {
+        const body = document.getElementById('pending-list-body');
+        if (!list || list.length === 0) {
+            body.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #9CA3AF;">暂无待审批的申请</td></tr>';
+            return;
+        }
+
+        body.innerHTML = list.map(item => `
+            <tr>
+                <td><strong>${item.emp_name}</strong></td>
+                <td>${item.dept_name}</td>
+                <td><span class="badge-type">${typeMap[item.leave_type] || item.leave_type}</span></td>
+                <td>${formatLeaveDate(item)}</td>
+                <td><b style="color: #1A365D;">${item.leave_days}</b> 天</td>
+                <td><span title="${item.remark || ''}">${item.remark || '-'}</span></td>
+                <td style="font-size: 12px; color: #6B7280;">${item.create_time}</td>
+                <td>
+                    <div class="action-btn">
+                        <button class="table-btn btn-approve" onclick="handleAction(${item.leave_id}, 'approved')">
+                            <i class="fa-solid fa-check"></i> 批准
+                        </button>
+                        <button class="table-btn btn-reject" onclick="handleAction(${item.leave_id}, 'rejected')">
+                            <i class="fa-solid fa-xmark"></i> 驳回
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function formatLeaveDate(item) {
+        const halfText = item.half_day === 'AM' ? '上午' : (item.half_day === 'PM' ? '下午' : '');
+        if (item.leave_days == 0.5 && item.start_date === item.end_date && halfText) {
+            return `${item.start_date}（${halfText}）`;
+        }
+        return `${item.start_date} 至 ${item.end_date}`;
+    }
+
+    function handleAction(id, action) {
+        const actionText = action === 'approved' ? '批准' : '驳回';
+        const remarkHtml = `
+            <div style="margin-bottom: 10px;">确定要${actionText}该请假申请吗？</div>
+            <div class="form-group" style="margin: 0;">
+                <label>审批备注</label>
+                <textarea id="approval-remark-input" class="form-control" rows="3" placeholder="${action === 'rejected' ? '驳回时必须填写原因/说明' : '可填写原因/说明（选填）'}"></textarea>
+            </div>
+        `;
+        showConfirmModal(remarkHtml, function() {
+            const remark = ((document.getElementById('approval-remark-input') || {}).value || '').trim();
+            if (action === 'rejected' && !remark) {
+                showModal('驳回时必须填写审批备注', 'warning');
+                return;
+            }
+            fetch('/api/leave/approve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ leave_id: id, action: action, remark: remark })
+            })
+            .then(res => res.json())
+            .then(res => {
+                if (res.code === 200) {
+                    showModal(res.msg, 'success');
+                    loadPendingLeaves();
+                } else {
+                    showModal('操作失败：' + res.msg, 'error');
+                }
+            });
+        }, null, { confirmText: actionText, confirmType: action === 'rejected' ? 'danger' : 'primary' });
+    }
+</script>
+</body>
+</html>

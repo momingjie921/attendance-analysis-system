@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>考勤预警 - 考勤数据分析系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fontawesome/css/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}?v=2.0">
+    <style>
+        /* 筛选栏样式 */
+        .select-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+        .filter-bar .select-wrapper {
+            width: auto;
+        }
+        .select-wrapper::after {
+            content: "";
+            border: 5px solid transparent;
+            border-top-color: #6B7280;
+            border-bottom: none;
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            z-index: 2;
+        }
+        .filter-bar {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .filter-select {
+            padding: 8px 30px 8px 16px;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            background: #FFFFFF;
+            font-size: 14px;
+            min-width: 150px;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+        }
+
+        .badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            display: inline-block;
+        }
+        .badge-danger { background-color: #FEE2E2; color: #EF4444; }
+        .badge-warning { background-color: #FEF3C7; color: #D97706; }
+        
+        .action-btn-group {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-email {
+            background-color: #EFF6FF;
+            color: #3B82F6;
+        }
+        .btn-email:hover {
+            background-color: #DBEAFE;
+        }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fa-solid fa-clock"></i> 考勤管理系统</h2>
+        </div>
+        <ul class="sidebar-menu">
+            <li><a href="/admin/dashboard">
+                <i class="fa-solid fa-tachometer-alt"></i> 数据总览
+            </a></li>
+            <li><a href="/admin/attendance-warning" class="active">
+                <i class="fa-solid fa-bell"></i> 考勤预警
+            </a></li>
+            <li><a href="/admin/leave-approval">
+                <i class="fa-solid fa-check-to-slot"></i> 请假审批
+            </a></li>
+            <li><a href="/admin/data-import">
+                <i class="fa-solid fa-file-excel"></i> 数据导入
+            </a></li>
+            <li><a href="/admin/employee-management">
+                <i class="fa-solid fa-users"></i> 员工管理
+            </a></li>
+            <li><a href="/admin/department-management">
+                <i class="fa-solid fa-building"></i> 部门管理
+            </a></li>
+            <li><a href="/admin/rule-config">
+                <i class="fa-solid fa-cog"></i> 规则配置
+            </a></li>
+            <li><a href="/admin/holiday-calendar">
+                <i class="fa-solid fa-calendar-days"></i> 节假日管理
+            </a></li>
+            <li><a href="/admin/data-backup">
+                <i class="fa-solid fa-database"></i> 数据备份
+            </a></li>
+            <li><a href="/logout">
+                <i class="fa-solid fa-sign-out-alt"></i> 退出登录
+            </a></li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <div class="header">
+            <h1 class="header-title">考勤预警中心</h1>
+            <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name={{ name[0] }}&background=1A365D&color=fff&rounded=true&bold=true&font-size=0.6" alt="Avatar">
+                <span>{{ name }}（{{ session.role }}）</span>
+            </div>
+        </div>
+
+        <div class="search-bar">
+            <div class="search-input">
+                <i class="fa-solid fa-search"></i>
+                <input type="text" id="searchInput" placeholder="搜索员工姓名">
+            </div>
+            <button class="btn btn-primary" id="send-all-btn">
+                <i class="fa-solid fa-paper-plane"></i> 一键发送提醒邮件
+            </button>
+        </div>
+
+        <!-- 筛选栏 -->
+        <div class="filter-bar">
+            <div class="select-wrapper">
+                <select id="deptFilter" class="filter-select">
+                    <option value="">全部部门</option>
+                </select>
+            </div>
+            <div class="select-wrapper">
+                <select id="typeFilter" class="filter-select">
+                    <option value="">全部异常类型</option>
+                    <option value="迟到超标">迟到超标</option>
+                    <option value="旷工预警">旷工预警</option>
+                </select>
+            </div>
+            <div class="select-wrapper">
+                <select id="levelFilter" class="filter-select">
+                    <option value="">全部等级</option>
+                    <option value="danger">严重超标</option>
+                    <option value="warning">触发预警</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="table-card">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>姓名</th>
+                        <th>部门</th>
+                        <th>异常类型</th>
+                        <th>当前次数</th>
+                        <th>配置上限</th>
+                        <th>状态</th>
+                        <th style="min-width: 120px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="warning-list-body">
+                    <tr class="loading-row">
+                        <td colspan="7" class="loading" style="text-align: center; padding: 40px 0;">
+                            <i class="fa-solid fa-spinner fa-spin"></i>
+                            <div>正在加载预警数据...</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- 分页 (新) -->
+            <div class="pagination" id="paginationContainer">
+                <!-- 分页将通过JS动态生成 -->
+            </div>
+        </div>
+    </main>
+</div>
+
+{% include 'includes/_modals.html' %}
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+<script>
+    let allWarnings = []; // 存储所有预警数据
+    let filteredWarnings = []; // 存储筛选后的预警数据
+    
+    // 分页变量 (新)
+    let currentPage = 1;
+    let perPage = 10;
+    let totalPages = 1;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadDepartments();
+        loadWarnings();
+
+        // 绑定筛选事件
+        ['searchInput', 'deptFilter', 'typeFilter', 'levelFilter'].forEach(id => {
+            document.getElementById(id).addEventListener('input', () => {
+                currentPage = 1; // 筛选时重置到第一页
+                applyFilters();
+            });
+        });
+    });
+
+    function loadDepartments() {
+        fetch('/api/employees/departments')
+            .then(res => res.json())
+            .then(res => {
+                if (res.code === 200) {
+                    const deptFilter = document.getElementById('deptFilter');
+                    res.data.departments.forEach(dept => {
+                        const option = document.createElement('option');
+                        option.value = dept.dept_name;
+                        option.textContent = dept.dept_name;
+                        deptFilter.appendChild(option);
+                    });
+                }
+            });
+    }
+
+    function loadWarnings() {
+        fetch('/api/dashboard/data')
+            .then(response => response.json())
+            .then(res => {
+                if (res.code === 200 && res.data.warningList) {
+                    allWarnings = res.data.warningList;
+                    applyFilters();
+                } else {
+                    document.getElementById('warning-list-body').innerHTML = `
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 40px 0; color: #EF4444;">
+                                <div>加载失败：${res.msg || '未知错误'}</div>
+                            </td>
+                        </tr>
+                    `;
+                }
+            })
+            .catch(err => {
+                document.getElementById('warning-list-body').innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 40px 0; color: #EF4444;">
+                            <div>网络错误，请稍后重试</div>
+                        </td>
+                    </tr>
+                `;
+            });
+    }
+
+    function applyFilters() {
+        const search = document.getElementById('searchInput').value.trim().toLowerCase();
+        const dept = document.getElementById('deptFilter').value;
+        const type = document.getElementById('typeFilter').value;
+        const level = document.getElementById('levelFilter').value;
+
+        filteredWarnings = allWarnings.filter(w => {
+            const matchSearch = !search || w.emp_name.toLowerCase().includes(search);
+            const matchDept = !dept || w.dept_name === dept;
+            const matchType = !type || w.type === type;
+            const matchLevel = !level || w.level === level;
+            return matchSearch && matchDept && matchType && matchLevel;
+        });
+
+        // 计算分页数据
+        totalPages = Math.ceil(filteredWarnings.length / perPage) || 1;
+        const start = (currentPage - 1) * perPage;
+        const end = start + perPage;
+        const pageData = filteredWarnings.slice(start, end);
+
+        renderWarnings(pageData);
+        renderPagination();
+    }
+
+    // 渲染分页组件 (与员工管理样式一致)
+    function renderPagination() {
+        const pagination = document.getElementById('paginationContainer');
+        if (totalPages <= 1) {
+            pagination.innerHTML = '';
+            return;
+        }
+
+        let startPage = Math.max(1, currentPage - 2);
+        let endPage = Math.min(totalPages, currentPage + 2);
+
+        if (endPage - startPage < 4) {
+            if (startPage === 1) endPage = Math.min(5, totalPages);
+            else if (endPage === totalPages) startPage = Math.max(1, totalPages - 4);
+        }
+
+        let html = `
+            <button class="pagination-btn" onclick="changePage(1)" ${currentPage === 1 ? 'disabled' : ''} title="第一页">
+                <i class="fa-solid fa-angles-left"></i>
+            </button>
+            <button class="pagination-btn" onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} title="上一页">
+                <i class="fa-solid fa-chevron-left"></i>
+            </button>
+        `;
+
+        for (let i = startPage; i <= endPage; i++) {
+            html += `
+                <button class="pagination-btn ${i === currentPage ? 'active' : ''}" onclick="changePage(${i})">
+                    ${i}
+                </button>
+            `;
+        }
+
+        html += `
+            <button class="pagination-btn" onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} title="下一页">
+                <i class="fa-solid fa-chevron-right"></i>
+            </button>
+            <button class="pagination-btn" onclick="changePage(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''} title="最后一页">
+                <i class="fa-solid fa-angles-right"></i>
+            </button>
+            <span class="pagination-info">
+                第 ${currentPage} / ${totalPages} 页，共 ${filteredWarnings.length} 条
+            </span>
+        `;
+
+        pagination.innerHTML = html;
+    }
+
+    // 切换页码
+    function changePage(page) {
+        if (page < 1 || page > totalPages) return;
+        currentPage = page;
+        applyFilters(); // 重新应用筛选（其实是切片）
+    }
+
+    function renderWarnings(warnings) {
+        const body = document.getElementById('warning-list-body');
+        if (!warnings || warnings.length === 0) {
+            body.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px 0; color: #6B7280;">暂无预警记录</td></tr>';
+            return;
+        }
+
+        body.innerHTML = warnings.map(w => `
+            <tr>
+                <td style="font-weight: 500;">${w.emp_name}</td>
+                <td>${w.dept_name || '未分配'}</td>
+                <td><span class="badge ${w.level === 'danger' ? 'badge-danger' : 'badge-warning'}">${w.type}</span></td>
+                <td><b style="color: ${w.level === 'danger' ? '#EF4444' : '#D97706'}">${w.count}</b> 次</td>
+                <td>${w.limit} 次</td>
+                <td>${w.level === 'danger' ? '严重超标' : '触发预警'}</td>
+                <td class="action-btn">
+                    <button class="table-btn edit-btn btn-email" onclick="sendEmail('${w.emp_id}', '${w.emp_name}', '${w.type}', ${w.count})" title="发送邮件通知">
+                        <i class="fa-solid fa-envelope"></i> 发送邮件
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function sendEmail(empId, empName, type, count) {
+        showConfirmModal(`<p>确定要向员工 "<strong>${empName}</strong>" 发送考勤预警提醒邮件吗？</p>`, function() {
+            const btn = event.target.closest('button');
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 发送中...';
+            btn.disabled = true;
+
+            fetch('/api/warning/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ emp_id: empId, type: type, count: count })
+            })
+            .then(response => response.json())
+            .then(res => {
+                if (res.code === 200) {
+                    showModal('邮件发送成功！', 'success');
+                } else {
+                    showModal('发送失败：' + res.msg, 'error');
+                }
+            })
+            .finally(() => {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            });
+        });
+    }
+
+    document.getElementById('send-all-btn').addEventListener('click', function() {
+        if (filteredWarnings.length === 0) {
+            showModal('当前列表没有可发送的预警员工', 'warning');
+            return;
+        }
+
+        const msg = filteredWarnings.length === allWarnings.length ? 
+            '确定要向所有预警员工发送提醒邮件吗？' : 
+            `确定要向筛选出的 ${filteredWarnings.length} 名员工发送提醒邮件吗？`;
+
+        showConfirmModal(`<p>${msg}</p><p style="color: #6B7280; font-size: 12px; margin-top: 8px;">系统将按名单逐一发送，请勿重复点击。</p>`, function() {
+            const btn = document.getElementById('send-all-btn');
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在批量发送...';
+            btn.disabled = true;
+
+            fetch('/api/warning/send-email-batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ warnings: filteredWarnings })
+            })
+            .then(response => response.json())
+            .then(res => {
+                if (res.code === 200) {
+                    showModal(res.msg, 'success');
+                } else {
+                    showModal('批量发送失败：' + res.msg, 'error');
+                }
+            })
+            .finally(() => {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            });
+        });
+    });
+</script>
+</body>
+</html>

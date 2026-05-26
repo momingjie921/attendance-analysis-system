@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>普通员工 - 考勤数据分析系统</title>
+    <link rel="stylesheet" href="/static/fontawesome/css/all.min.css">
+    <script src="/static/echarts/echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body {
+            background-color: #F9FAFB;
+            color: #111827;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .layout {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 240px;
+            background-color: #1A365D;
+            color: #FFFFFF;
+            padding: 16px 0;
+            transition: width 0.2s ease;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 0 16px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 16px;
+        }
+
+        .sidebar-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sidebar-menu {
+            list-style: none;
+            padding: 0 8px;
+        }
+
+        .sidebar-menu li {
+            margin-bottom: 4px;
+            border-radius: 4px;
+        }
+
+        .sidebar-menu a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            font-size: 14px;
+            border-left: 3px solid transparent;
+            transition: all 0.2s ease;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+        }
+
+        .sidebar-menu a i {
+            width: 16px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .sidebar-menu a:hover, .sidebar-menu a.active {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #FFFFFF;
+            border-left-color: #3B82F6;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            height: 100vh;
+            margin-left: 240px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .header-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1A365D;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .user-profile img {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #E5E7EB;
+        }
+
+        .user-profile span {
+            font-size: 14px;
+            color: #6B7280;
+        }
+
+        .profile-card {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            transition: all 0.2s ease;
+        }
+
+        .profile-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .profile-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background-color: #E5E7EB;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: #1A365D;
+        }
+
+        .profile-info h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 8px;
+        }
+
+        .profile-info p {
+            font-size: 14px;
+            color: #6B7280;
+            margin-bottom: 4px;
+        }
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .card-title {
+            font-size: 14px;
+            color: #6B7280;
+            margin-bottom: 8px;
+        }
+
+        .card-value {
+            font-size: 28px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 4px;
+        }
+
+        .card-trend {
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .trend-up {
+            color: #10B981;
+        }
+
+        .trend-down {
+            color: #EF4444;
+        }
+
+        /* ========== 关键修改1：优化chart-card布局，为居中打基础 ========== */
+        .chart-card {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            height: 300px;
+            margin-bottom: 24px;
+            transition: all 0.2s ease;
+            display: flex; /* 启用Flex布局 */
+            flex-direction: column; /* 标题+图表垂直排列 */
+        }
+
+        .chart-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+
+        .chart-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 16px;
+            flex-shrink: 0; /* 标题高度固定，不压缩 */
+        }
+
+        /* 图表容器占满剩余空间 */
+        .chart-card > div {
+            flex: 1; /* 高度占满父容器剩余空间 */
+            width: 100%; /* 宽度铺满 */
+        }
+
+        .table-card {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin-bottom: 24px;
+        }
+
+        .table-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 16px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .data-table th, .data-table td {
+            padding: 12px 8px;
+            text-align: left;
+            border-bottom: 1px solid #E5E7EB;
+            font-size: 14px;
+            vertical-align: middle;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .data-table th {
+            color: #6B7280;
+            font-weight: 500;
+        }
+
+        .data-table td {
+            color: #111827;
+        }
+
+        .data-table tr:hover {
+            background-color: #F9FAFB;
+        }
+
+        .remark-cell {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .remark-text {
+            flex: 1;
+            min-width: 0;
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .badge-normal {
+            background-color: #D1FAE5;
+            color: #059669;
+        }
+
+        .badge-warning {
+            background-color: #FEF3C7;
+            color: #D97706;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 16px;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .pagination-info {
+            margin-right: 16px;
+            font-size: 14px;
+            color: #6B7280;
+        }
+
+        .pagination-btn {
+            padding: 6px 12px;
+            border: 1px solid #E5E7EB;
+            background-color: #FFFFFF;
+            color: #6B7280;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            border-color: #3B82F6;
+            color: #3B82F6;
+        }
+
+        .pagination-btn.active {
+            background-color: #3B82F6;
+            color: #FFFFFF;
+            border-color: #3B82F6;
+        }
+
+        .pagination-btn:disabled {
+            background-color: #F9FAFB;
+            color: #9CA3AF;
+            cursor: not-allowed;
+        }
+
+        /* Modal Styles（对齐 admin-dashboard/common.css） */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            display: none;
+        }
+
+        .modal {
+            background: #FFFFFF;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 420px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            animation: modalFadeIn 0.2s ease-out;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .modal-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1A365D;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            line-height: 1.5;
+        }
+
+        .modal-close {
+            font-size: 20px;
+            color: #6B7280;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .modal-close:hover {
+            background-color: #F3F4F6;
+        }
+
+        .modal-body {
+            font-size: 14px;
+            color: #111827;
+            line-height: 1.5;
+            margin-bottom: 24px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .modal-btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .modal-btn-primary {
+            background-color: #3B82F6;
+            color: #FFFFFF;
+        }
+
+        .modal-btn-primary:hover {
+            background-color: #2563EB;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #3B82F6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: #3B82F6;
+            color: #FFFFFF;
+        }
+
+        .btn-primary:hover {
+            background-color: #2563EB;
+        }
+
+        .btn-secondary {
+            background-color: #FFFFFF;
+            color: #374151;
+            border: 1px solid #D1D5DB;
+        }
+
+        .btn-secondary:hover {
+            background-color: #F3F4F6;
+        }
+
+        .edit-remark-btn {
+            cursor: pointer;
+            color: #3B82F6;
+            margin-left: 8px;
+            font-size: 12px;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .edit-remark-btn:hover {
+            color: #2563EB;
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .layout {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                padding: 8px 0;
+                position: relative;
+                height: auto;
+                overflow-y: visible;
+            }
+
+            .sidebar-menu {
+                display: flex;
+                overflow-x: auto;
+                padding: 0;
+            }
+
+            .sidebar-menu li {
+                margin-bottom: 0;
+                margin-right: 4px;
+            }
+
+            .sidebar-menu a {
+                padding: 12px 12px;
+                white-space: nowrap;
+            }
+
+            .main-content {
+                padding: 16px;
+                height: auto;
+                margin-left: 0;
+                overflow-y: visible;
+            }
+
+            body {
+                height: auto;
+                overflow: auto;
+            }
+
+            .profile-card {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fa-solid fa-clock"></i> 考勤管理系统</h2>
+        </div>
+        <ul class="sidebar-menu">
+            {% if session.role == 'manager' %}
+            <li><a href="/manager/dashboard"><i class="fa-solid fa-tachometer-alt"></i> 部门数据</a></li>
+            <li><a href="/manager/leave-approval"><i class="fa-solid fa-check-to-slot"></i> 请假审批</a></li>
+            <li><a href="/employee/leave-apply"><i class="fa-solid fa-paper-plane"></i> 请假申请</a></li>
+            <li><a href="/manager/data-import"><i class="fa-solid fa-file-excel"></i> 数据导入</a></li>
+            <li><a href="/manager/departmental-analysis"><i class="fa-solid fa-chart-bar"></i> 部门分析</a></li>
+            <li><a href="/manager/departmental-abnormal"><i class="fa-solid fa-exclamation-triangle"></i> 部门异常</a></li>
+            <li><a href="/employee/dashboard" class="active"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+            <li><a href="/employee/attendance-record"><i class="fa-solid fa-calendar-check"></i> 打卡记录</a></li>
+            <li><a href="/employee/abnormal-record"><i class="fa-solid fa-exclamation-circle"></i> 异常记录</a></li>
+            {% elif session.role == 'admin' %}
+            <li><a href="/admin/dashboard"><i class="fa-solid fa-tachometer-alt"></i> 数据总览</a></li>
+            <li><a href="/admin/leave-approval"><i class="fa-solid fa-check-to-slot"></i> 请假审批</a></li>
+            <li><a href="/employee/leave-apply"><i class="fa-solid fa-paper-plane"></i> 请假申请</a></li>
+            <li><a href="/employee/dashboard" class="active"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+            {% else %}
+            <li><a href="/employee/dashboard" class="active"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+            <li><a href="/employee/attendance-record"><i class="fa-solid fa-calendar-check"></i> 打卡记录</a></li>
+            <li><a href="/employee/abnormal-record"><i class="fa-solid fa-exclamation-circle"></i> 异常记录</a></li>
+            <li><a href="/employee/leave-apply"><i class="fa-solid fa-calendar-plus"></i> 请假申请</a></li>
+            {% endif %}
+            <li><a href="/logout"><i class="fa-solid fa-sign-out-alt"></i> 退出登录</a></li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <div class="header">
+            <h1 class="header-title">个人考勤数据</h1>
+            <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name={{ name[0] }}&background=1A365D&color=fff&rounded=true&bold=true&font-size=0.6" alt="Avatar">
+                <span>{{ name }}（{{ session.role }}）</span>
+            </div>
+        </div>
+
+        <div class="profile-card">
+            <div class="profile-avatar">
+                <i class="fa-solid fa-user"></i>
+            </div>
+            <div class="profile-info">
+                <h3 id="profile-name">{{ name }}</h3>
+                <p><span id="profile-dept">{{ dept }}</span></p>
+                <p id="profile-emp-code">员工编号：EMP...</p>
+                <p id="profile-attend-days">本月打卡天数：--/--</p>
+            </div>
+        </div>
+
+        <div class="card-grid">
+            <div class="card">
+                <div class="card-title">本月出勤率</div>
+                <div class="card-value" id="card-rate-value">--%</div>
+                <div class="card-trend" id="card-rate-trend">
+                    <span>--%</span> 较上月
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title">本月迟到次数</div>
+                <div class="card-value" id="card-late-value">--</div>
+                <div class="card-trend" id="card-late-trend">
+                    <span>--</span> 较上月
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title">平均打卡时间</div>
+                <div class="card-value" id="card-time-value">--:--</div>
+                <div class="card-trend" id="card-time-trend">
+                    <span>--</span> 较上月
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title">本月异常次数</div>
+                <div class="card-value" id="card-abnormal-value">--</div>
+                <div class="card-trend" id="card-abnormal-trend">
+                    <span>--</span> 较上月
+                </div>
+            </div>
+        </div>
+
+        <!-- 个人考勤趋势图 -->
+        <div class="chart-card">
+            <h3>近12个月出勤率趋势</h3>
+            <!-- ========== 关键修改2：移除内联样式，由CSS统一控制 ========== -->
+            <div id="personalAttendanceChart"></div>
+        </div>
+
+        <!-- 本月打卡明细 -->
+        <div class="table-card">
+            <h3>本月打卡明细</h3>
+            <table class="data-table">
+                <colgroup>
+                    <col style="width: 20%;">
+                    <col style="width: 20%;">
+                    <col style="width: 20%;">
+                    <col style="width: 20%;">
+                    <col style="width: 20%;">
+                </colgroup>
+                <thead>
+                <tr>
+                    <th>日期</th>
+                    <th>上班打卡时间</th>
+                    <th>下班打卡时间</th>
+                    <th>考勤状态</th>
+                    <th>备注</th>
+                </tr>
+                </thead>
+                <tbody id="attendance-table-body">
+                <!-- Data will be populated by JS -->
+                </tbody>
+            </table>
+            <!-- Pagination Controls -->
+            <div class="pagination" id="attendance-pagination">
+                <!-- Dynamic pagination buttons -->
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Edit Remark Modal -->
+<div class="modal-overlay" id="remark-modal">
+    <div class="modal" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3>编辑异常说明</h3>
+            <i class="fa-solid fa-xmark modal-close" onclick="closeRemarkModal()"></i>
+        </div>
+        <div class="modal-body">
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label style="display:block;margin-bottom:8px;font-size:14px;color:#6B7280;">异常日期</label>
+                <input type="text" id="remark-date" class="form-control" readonly style="background-color:#F3F4F6;width:100%;">
+            </div>
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label style="display:block;margin-bottom:8px;font-size:14px;color:#6B7280;">异常说明</label>
+                <textarea id="remark-content" class="form-control" rows="4" placeholder="请填写异常原因，如：路上堵车、系统漏刷等" style="width:100%;resize:vertical;"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeRemarkModal()">取消</button>
+            <button class="btn btn-primary" onclick="submitRemark()">保存</button>
+        </div>
+    </div>
+</div>
+
+{% include 'includes/_modals.html' %}
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+
+<script>
+    let currentAttPage = 1;
+    let currentEditId = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        fetchEmployeeData();
+        fetchAttendanceList(1);
+    });
+
+    function fetchEmployeeData() {
+        fetch('/api/employee/data')
+            .then(response => response.json())
+            .then(res => {
+                if (res.code === 200) {
+                    updateDashboard(res.data);
+                } else {
+                    console.error('Failed to fetch data:', res.msg);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    }
+    
+    function fetchAttendanceList(page) {
+        currentAttPage = page;
+        fetch(`/api/employee/attendance/list?page=${page}&per_page=10`)
+            .then(res => res.json())
+            .then(res => {
+                if (res.code === 200) {
+                    updateTable(res.data.items);
+                    updatePagination(res.data, 'attendance-pagination');
+                }
+            })
+            .catch(err => console.error(err));
+    }
+
+    function updateDashboard(data) {
+        // 1. Update Profile
+        document.getElementById('profile-name').textContent = data.empInfo.empName;
+        document.getElementById('profile-dept').textContent = data.empInfo.deptName;
+        document.getElementById('profile-emp-code').textContent = `员工编号：${data.empInfo.empCode}`;
+        // attendDays might need total working days, but for now just show attended days
+        // Or show "Attended: X days"
+        document.getElementById('profile-attend-days').textContent = `本月出勤天数：${data.attendDays}天`;
+
+        // 2. Update Cards
+        
+        // Card 1: Attendance Rate
+        updateCard('card-rate', data.attendance, data.attendanceDropRate, 'attendance');
+
+        // Card 2: Late Count
+        updateCard('card-late', data.lateCount, data.lateCountGrowth, 'inverse');
+
+        // Card 3: Avg Check-in Time
+        document.getElementById('card-time-value').textContent = data.avgCheckinTime;
+        const timeTrendEl = document.getElementById('card-time-trend');
+        if (data.avgCheckinDiffMinutes === undefined || data.avgCheckinDiffMinutes === null) {
+            timeTrendEl.style.display = 'none';
+        } else {
+            timeTrendEl.style.display = 'flex';
+            if (data.avgCheckinDiffMinutes > 0) {
+                timeTrendEl.className = 'card-trend trend-down'; // Later is worse (red)
+                timeTrendEl.innerHTML = `<i class="fa-solid fa-arrow-up"></i> 较上月晚 ${data.avgCheckinDiffMinutes} 分钟`;
+            } else if (data.avgCheckinDiffMinutes < 0) {
+                timeTrendEl.className = 'card-trend trend-up'; // Earlier is better (green)
+                timeTrendEl.innerHTML = `<i class="fa-solid fa-arrow-down"></i> 较上月早 ${Math.abs(data.avgCheckinDiffMinutes)} 分钟`;
+            } else {
+                timeTrendEl.className = 'card-trend';
+                timeTrendEl.style.color = '#6B7280';
+                timeTrendEl.innerHTML = `<i class="fa-solid fa-minus"></i> 持平`;
+            }
+        }
+
+        // Card 4: Abnormal Count
+        updateCard('card-abnormal', data.abnormal, data.abnormalGrowth, 'inverse');
+
+        // 3. Update Chart
+        initChart(data.attendanceTrendMonths, data.attendanceTrendRates);
+
+        // 4. Update Table - No longer needed here as it's handled separately
+        // updateTable(data.attendanceList);
+    }
+
+    function updateCard(idPrefix, value, growthRate, type) {
+        const valueEl = document.getElementById(`${idPrefix}-value`);
+        const trendEl = document.getElementById(`${idPrefix}-trend`);
+        
+        valueEl.textContent = value;
+
+        if (growthRate === undefined || growthRate === null) {
+            trendEl.style.display = 'none';
+            return;
+        }
+
+        // Parse growthRate just in case it's string
+        let rate = parseFloat(growthRate);
+        if (isNaN(rate)) rate = 0;
+
+        let icon = '';
+        let text = '';
+        let className = '';
+
+        if (type === 'attendance') {
+            // Special handling for attendance drop rate
+            // Backend returns "drop rate". If positive, it dropped.
+            // If drop rate is 1.5%, it means it decreased by 1.5%.
+            // We want to show change.
+            // If drop rate > 0: Down Arrow (Red). Text: "Drop X%"
+            // If drop rate < 0: Up Arrow (Green). Text: "Rise X%"
+            
+            if (rate > 0) {
+                // Dropped
+                icon = '<i class="fa-solid fa-arrow-down"></i>';
+                text = `${Math.abs(rate)}% 较上月`;
+                className = 'card-trend trend-down'; // Red
+            } else if (rate < 0) {
+                // Rose
+                icon = '<i class="fa-solid fa-arrow-up"></i>';
+                text = `${Math.abs(rate)}% 较上月`;
+                className = 'card-trend trend-up'; // Green
+            } else {
+                icon = '<i class="fa-solid fa-minus"></i>';
+                text = '持平';
+                className = 'card-trend';
+                trendEl.style.color = '#6B7280';
+            }
+        } else if (type === 'inverse') {
+            // For Late/Abnormal: Growth > 0 is Bad (Red Up Arrow)
+            if (rate > 0) {
+                icon = '<i class="fa-solid fa-arrow-up"></i>';
+                text = `${rate}% 较上月`;
+                className = 'card-trend trend-down'; // Red (using trend-down class for red color)
+            } else if (rate < 0) {
+                icon = '<i class="fa-solid fa-arrow-down"></i>';
+                text = `${Math.abs(rate)}% 较上月`;
+                className = 'card-trend trend-up'; // Green (using trend-up class for green color)
+            } else {
+                icon = '<i class="fa-solid fa-minus"></i>';
+                text = '持平';
+                className = 'card-trend';
+                trendEl.style.color = '#6B7280';
+            }
+        }
+
+        if (className) {
+            trendEl.className = className;
+            trendEl.innerHTML = `${icon} ${text}`;
+        }
+    }
+
+    function initChart(months, rates) {
+        const chartDom = document.getElementById('personalAttendanceChart');
+        const myChart = echarts.init(chartDom);
+        
+        const option = {
+            tooltip: {
+                trigger: 'axis',
+                textStyle: {fontSize: 12},
+                formatter: '{b}: {c}%'
+            },
+            grid: {
+                left: '5%',
+                right: '5%',
+                bottom: '8%',
+                top: '15%', // Increased top padding
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                data: months,
+                axisLabel: {fontSize: 12},
+                axisLine: {lineStyle: {color: '#E5E7EB'}},
+                alignTicks: true
+            },
+            yAxis: {
+                type: 'value',
+                max: 100,
+                min: function(value) {
+                    return Math.max(0, value.min - 5); // Dynamic min
+                },
+                axisLabel: {
+                    fontSize: 12,
+                    formatter: '{value}%'
+                },
+                axisLine: {lineStyle: {color: '#E5E7EB'}},
+                splitLine: {lineStyle: {color: '#F3F4F6'}}
+            },
+            series: [{
+                name: '个人出勤率',
+                type: 'line',
+                data: rates,
+                smooth: true,
+                lineStyle: {color: '#3B82F6', width: 2},
+                itemStyle: {color: '#1A365D'},
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        {offset: 0, color: 'rgba(59, 130, 246, 0.3)'},
+                        {offset: 1, color: 'rgba(59, 130, 246, 0.0)'}
+                    ])
+                }
+            }],
+            color: ['#1A365D']
+        };
+
+        myChart.setOption(option);
+        
+        window.addEventListener('resize', function () {
+            myChart.resize();
+        });
+    }
+
+    function updateTable(list) {
+        const tbody = document.getElementById('attendance-table-body');
+        tbody.innerHTML = '';
+        
+        if (!list || list.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999;">暂无数据</td></tr>';
+            return;
+        }
+
+        list.forEach(item => {
+            const tr = document.createElement('tr');
+
+            const tdDate = document.createElement('td');
+            tdDate.textContent = item.date || '-';
+
+            const tdCheckin = document.createElement('td');
+            tdCheckin.textContent = item.checkinTime || '-';
+
+            const tdCheckout = document.createElement('td');
+            tdCheckout.textContent = item.checkoutTime || '-';
+
+            const tdStatus = document.createElement('td');
+            const statusBadge = document.createElement('span');
+            statusBadge.className = `status-badge ${item.statusClass || ''}`.trim();
+            statusBadge.textContent = item.status || '-';
+            tdStatus.appendChild(statusBadge);
+
+            const tdRemark = document.createElement('td');
+            tdRemark.className = 'remark-cell';
+            const remarkText = document.createElement('span');
+            remarkText.className = 'remark-text';
+            remarkText.textContent = item.remark || '-';
+            tdRemark.appendChild(remarkText);
+
+            if (item.abnormal_id) {
+                const editBtn = document.createElement('span');
+                editBtn.className = 'edit-remark-btn';
+                editBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> 编辑';
+                editBtn.addEventListener('click', () => {
+                    openRemarkModal(item.abnormal_id, item.date, item.remark || '');
+                });
+                tdRemark.appendChild(editBtn);
+            }
+
+            tr.appendChild(tdDate);
+            tr.appendChild(tdCheckin);
+            tr.appendChild(tdCheckout);
+            tr.appendChild(tdStatus);
+            tr.appendChild(tdRemark);
+            tbody.appendChild(tr);
+        });
+    }
+
+    function updatePagination(data, containerId) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = '';
+        
+        // 超过10条才显示分页
+        if (data.total <= 10) {
+            container.style.display = 'none';
+            return;
+        }
+        container.style.display = 'flex';
+        
+        // 计算页码范围
+        let startPage = Math.max(1, data.page - 2);
+        let endPage = Math.min(data.pages, data.page + 2);
+
+        if (endPage - startPage < 4) {
+            if (startPage === 1) {
+                endPage = Math.min(5, data.pages);
+            } else if (endPage === data.pages) {
+                startPage = Math.max(1, data.pages - 4);
+            }
+        }
+
+        let html = `
+            <button class="pagination-btn" onclick="fetchAttendanceList(1)" ${data.page === 1 ? 'disabled' : ''} title="第一页">
+                <i class="fa-solid fa-angles-left"></i>
+            </button>
+            <button class="pagination-btn" onclick="fetchAttendanceList(${data.page - 1})" ${data.page === 1 ? 'disabled' : ''} title="上一页">
+                <i class="fa-solid fa-chevron-left"></i>
+            </button>
+        `;
+
+        // 页码按钮
+        for (let i = startPage; i <= endPage; i++) {
+            html += `
+                <button class="pagination-btn ${i === data.page ? 'active' : ''}" 
+                        onclick="fetchAttendanceList(${i})">
+                    ${i}
+                </button>
+            `;
+        }
+
+        html += `
+            <button class="pagination-btn" onclick="fetchAttendanceList(${data.page + 1})" ${data.page === data.pages ? 'disabled' : ''} title="下一页">
+                <i class="fa-solid fa-chevron-right"></i>
+            </button>
+            <button class="pagination-btn" onclick="fetchAttendanceList(${data.pages})" ${data.page === data.pages ? 'disabled' : ''} title="最后一页">
+                <i class="fa-solid fa-angles-right"></i>
+            </button>
+            <span class="pagination-info">
+                第 ${data.page} / ${data.pages} 页，共 ${data.total} 条
+            </span>
+        `;
+
+        container.innerHTML = html;
+    }
+
+    // Modal Functions
+    function openRemarkModal(id, date, currentRemark) {
+        currentEditId = id;
+        document.getElementById('remark-date').value = date;
+        // Clean up remark (remove duration prefix if exists)
+        let cleanRemark = currentRemark || '';
+        if (cleanRemark.includes('迟到') || cleanRemark.includes('早退')) {
+            const match = cleanRemark.match(/\((.*)\)/);
+            if (match) cleanRemark = match[1];
+            else if (cleanRemark.startsWith('迟到') || cleanRemark.startsWith('早退')) {
+                 if (!cleanRemark.includes(' ')) cleanRemark = '';
+            }
+        }
+        document.getElementById('remark-content').value = cleanRemark === '-' ? '' : cleanRemark;
+        document.getElementById('remark-modal').style.display = 'flex';
+    }
+
+    function closeRemarkModal() {
+        document.getElementById('remark-modal').style.display = 'none';
+        currentEditId = null;
+    }
+
+    async function submitRemark() {
+        const remark = document.getElementById('remark-content').value.trim();
+        if (!remark) {
+            showModal('请填写异常说明', 'warning');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/employee/abnormal/update-remark', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    abnormal_id: currentEditId,
+                    remark: remark
+                })
+            });
+            const result = await response.json();
+            if (result.code === 200) {
+                showModal('说明提交成功，请等待管理人员审核', 'success');
+                closeRemarkModal();
+                fetchAttendanceList(currentAttPage);
+            } else {
+                showModal(result.msg || '提交失败', 'error');
+            }
+        } catch (error) {
+            console.error('Error submitting remark:', error);
+            showModal('提交失败，请稍后重试', 'error');
+        }
+    }
+
+    // Close modal on outside click
+    window.onclick = function(event) {
+        const modal = document.getElementById('remark-modal');
+        if (event.target === modal) {
+            closeRemarkModal();
+        }
+    }
+</script>
+</body>
+</html>

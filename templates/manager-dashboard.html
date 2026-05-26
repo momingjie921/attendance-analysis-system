@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>部门经理 - 考勤数据分析系统</title>
+   <link rel="stylesheet" href="/static/fontawesome/css/all.min.css">
+    <script src="/static/echarts/echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+        body {
+            background-color: #F9FAFB;
+            color: #111827;
+        }
+        .layout {
+            display: flex;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: 240px;
+            background-color: #1A365D;
+            color: #FFFFFF;
+            padding: 16px 0;
+            transition: width 0.2s ease;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        .sidebar-header {
+            padding: 0 16px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 16px;
+        }
+        .sidebar-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        /* 核心修改1：给菜单容器加内边距，优化整体间距 */
+        .sidebar-menu {
+            list-style: none;
+            padding: 0 8px;
+        }
+        .sidebar-menu li {
+            margin-bottom: 4px;
+            border-radius: 4px; /* 优化hover圆角，视觉更精致 */
+        }
+        /* 核心修改2：统一菜单链接布局，确保铺满父元素 */
+        .sidebar-menu a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            font-size: 14px;
+            border-left: 3px solid transparent;
+            transition: all 0.2s ease;
+            width: 100%; /* 确保宽度铺满li */
+            height: 100%; /* 确保高度铺满li */
+            box-sizing: border-box;
+        }
+        /* 核心修改3：固定图标宽度，避免尺寸差异导致间距不一致 */
+        .sidebar-menu a i {
+            width: 16px;
+            text-align: center;
+            font-size: 14px;
+        }
+        .sidebar-menu a:hover, .sidebar-menu a.active {
+            background-color: rgba(255,255,255,0.1);
+            color: #FFFFFF;
+            border-left-color: #3B82F6;
+        }
+        .main-content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            margin-left: 240px;
+            width: calc(100% - 240px);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .header-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1A365D;
+        }
+        .header-title span {
+            font-size: 14px;
+            color: #6B7280;
+            font-weight: 400;
+            margin-left: 8px;
+        }
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .user-profile img {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #E5E7EB;
+        }
+        .user-profile span {
+            font-size: 14px;
+            color: #6B7280;
+        }
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .card {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            /* 新增hover过渡 */
+            transition: all 0.2s ease;
+        }
+        /* 新增card hover效果 */
+        .card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+        .card-title {
+            font-size: 14px;
+            color: #6B7280;
+            margin-bottom: 8px;
+        }
+        .card-value {
+            font-size: 28px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 4px;
+        }
+        .card-trend {
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .trend-up {
+            color: #10B981;
+        }
+        .trend-down {
+            color: #EF4444;
+        }
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .chart-card {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            height: 350px;
+            /* 新增hover过渡 */
+            transition: all 0.2s ease;
+            /* 关键：启用Flex布局，让子元素垂直+水平居中 */
+            display: flex;
+            flex-direction: column;
+        }
+        /* 新增chart-card hover效果 */
+        .chart-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+        .chart-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            /* 关键：标题不收缩，固定高度 */
+            flex-shrink: 0;
+        }
+        .chart-card h3 .export-btn {
+            font-size: 12px;
+            padding: 4px 8px;
+            background-color: #3B82F6;
+            color: #FFFFFF;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            /* 新增按钮过渡 */
+            transition: background-color 0.2s ease;
+        }
+        /* 新增导出按钮hover效果 */
+        .chart-card h3 .export-btn:hover {
+            background-color: #2563EB;
+        }
+        /* 关键：图表容器占满剩余空间，且自身内容居中 */
+        .chart-card > div {
+            flex: 1;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .table-card {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 24px;
+        }
+
+        .table-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 16px;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .data-table th, .data-table td {
+            padding: 12px 8px;
+            text-align: left;
+            border-bottom: 1px solid #E5E7EB;
+            font-size: 14px;
+        }
+        .data-table th {
+            color: #6B7280;
+            font-weight: 500;
+        }
+        .data-table td {
+            color: #111827;
+        }
+        .data-table tr:hover {
+            background-color: #F9FAFB;
+        }
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .badge-warning {
+            background-color: #FEF3C7;
+            color: #D97706;
+        }
+        .badge-danger {
+            background-color: #FEE2E2;
+            color: #EF4444;
+        }
+        .badge-success {
+            background-color: #D1FAE5;
+            color: #059669;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            display: none;
+        }
+        .modal {
+            background: #FFFFFF;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 420px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            animation: modalFadeIn 0.2s ease-out;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .modal-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1A365D;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            line-height: 1.5;
+        }
+        .modal-close {
+            font-size: 20px;
+            color: #6B7280;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+        }
+        .modal-close:hover {
+            background-color: #F3F4F6;
+        }
+        .modal-body {
+            font-size: 14px;
+            color: #111827;
+            line-height: 1.5;
+            margin-bottom: 24px;
+        }
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+        .modal-form-group {
+            margin-bottom: 16px;
+        }
+        .modal-form-group label {
+            display: block;
+            font-size: 14px;
+            color: #6B7280;
+            margin-bottom: 8px;
+        }
+        .modal-form-group select, .modal-form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s ease;
+        }
+        .modal-form-group select:hover, .modal-form-group textarea:hover {
+            border-color: #9CA3AF;
+        }
+        .modal-form-group select:focus, .modal-form-group textarea:focus {
+            outline: none;
+            border-color: #3B82F6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+        .modal-btn-group {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-primary {
+            background-color: #3B82F6;
+            color: #FFFFFF;
+        }
+        .btn-primary:hover {
+            background-color: #2563EB;
+        }
+        .btn-secondary {
+            background-color: #E5E7EB;
+            color: #6B7280;
+        }
+        .btn-secondary:hover {
+            background-color: #D1D5DB;
+        }
+        .btn-success {
+            background-color: #10B981;
+            color: #FFFFFF;
+        }
+        .btn-success:hover {
+            background-color: #059669;
+        }
+        @media (max-width: 768px) {
+            .layout {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                padding: 8px 0;
+                position: static;
+                height: auto;
+                overflow-y: visible;
+            }
+            .sidebar-menu {
+                display: flex;
+                overflow-x: auto;
+                padding: 0; /* 移动端移除菜单内边距 */
+            }
+            .sidebar-menu li {
+                margin-bottom: 0;
+                margin-right: 4px; /* 移动端菜单项横向间距 */
+            }
+            .sidebar-menu a {
+                padding: 12px 12px; /* 移动端缩小内边距 */
+                white-space: nowrap; /* 防止文字换行 */
+            }
+            .main-content {
+                padding: 16px;
+                margin-left: 0;
+                width: 100%;
+            }
+            .chart-grid {
+                grid-template-columns: 1fr;
+            }
+            .chart-card {
+                height: 300px;
+            }
+            .modal-content {
+                padding: 16px;
+                max-width: 90%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fa-solid fa-clock"></i> 考勤管理系统</h2>
+            </div>
+            <ul class="sidebar-menu">
+                <li><a href="/manager/dashboard" class="active"><i class="fa-solid fa-tachometer-alt"></i> 部门数据</a></li>
+                <li><a href="/manager/leave-approval"><i class="fa-solid fa-check-to-slot"></i> 请假审批</a></li>
+                <li><a href="/employee/leave-apply"><i class="fa-solid fa-paper-plane"></i> 请假申请</a></li>
+                <li><a href="/manager/data-import"><i class="fa-solid fa-file-excel"></i> 数据导入</a></li>
+                <li><a href="/manager/departmental-analysis"><i class="fa-solid fa-chart-bar"></i> 部门分析</a></li>
+                <li><a href="/manager/departmental-abnormal"><i class="fa-solid fa-exclamation-triangle"></i> 部门异常</a></li>
+                <li><a href="/employee/dashboard"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+                <li><a href="/employee/attendance-record"><i class="fa-solid fa-calendar-check"></i> 打卡记录</a></li>
+                <li><a href="/employee/abnormal-record"><i class="fa-solid fa-exclamation-circle"></i> 异常记录</a></li>
+                <li><a href="/logout"><i class="fa-solid fa-sign-out-alt"></i> 退出登录</a></li>
+            </ul>
+        </aside>
+
+        <!-- 主内容区：动态显示部门和姓名 -->
+        <main class="main-content">
+            <div class="header">
+                <h1 class="header-title">{{ dept }}考勤数据</h1>
+                <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name={{ name[0] }}&background=1A365D&color=fff&rounded=true&bold=true&font-size=0.6" alt="Avatar">
+                <span>{{ dept }} - {{ name }}</span>
+            </div>
+            </div>
+
+            <!-- 部门核心数据卡片 -->
+            <div class="card-grid">
+                <div class="card">
+                    <div class="card-title">部门员工数</div>
+                    <div class="card-value" id="val-emp-count">-</div>
+                    <div class="card-trend" id="trend-emp">
+                        -
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">本月出勤率</div>
+                    <div class="card-value" id="val-attendance">-</div>
+                    <div class="card-trend" id="trend-attendance">
+                        -
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">本月异常次数</div>
+                    <div class="card-value" id="val-abnormal">-</div>
+                    <div class="card-trend" id="trend-abnormal">
+                        -
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">平均迟到时长</div>
+                    <div class="card-value" id="val-late">-</div>
+                    <div class="card-trend" id="trend-late">
+                        -
+                    </div>
+                </div>
+            </div>
+
+            <!-- 部门图表区域 -->
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>部门员工出勤率排名 <button class="export-btn" data-chart="empAttendanceRank"><i class="fa-solid fa-download"></i> 导出</button></h3>
+                    <div id="empAttendanceRankChart"></div>
+                </div>
+                <div class="chart-card">
+                    <h3>部门异常类型分布 <button class="export-btn" data-chart="deptAbnormalType"><i class="fa-solid fa-download"></i> 导出</button></h3>
+                    <div id="deptAbnormalTypeChart"></div>
+                </div>
+            </div>
+
+            <!-- 部门异常明细 -->
+            <div class="table-card">
+                <h3 id="abnormal-detail-title">{{ dept }}异常考勤明细</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>员工姓名</th>
+                            <th>异常日期</th>
+                            <th>异常类型</th>
+                            <th>异常时长(分钟)</th>
+                            <th>备注</th>
+                            <th>处理状态</th>
+                        </tr>
+                    </thead>
+                    <tbody id="abnormal-table-body">
+                        <!-- 数据将通过JS加载 -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <div class="modal-overlay" id="process-modal">
+        <div class="modal" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>处理异常</h3>
+                <i class="fa-solid fa-xmark modal-close" onclick="closeProcessModal()"></i>
+            </div>
+            <div class="modal-body">
+                <div class="modal-form-group">
+                    <label>处理操作</label>
+                    <select id="process-action">
+                        <option value="approve">批准 (Approve)</option>
+                        <option value="warn">警告 (Warn)</option>
+                        <option value="makeup">补假 (Makeup)</option>
+                        <option value="reject">驳回 (Reject)</option>
+                    </select>
+                </div>
+                <div class="modal-form-group">
+                    <label>备注说明</label>
+                    <textarea id="process-remark" rows="3" placeholder="请输入处理备注（选填）"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeProcessModal()">取消</button>
+                <button class="btn btn-primary" onclick="submitProcess()">确认处理</button>
+            </div>
+        </div>
+    </div>
+
+    {% include 'includes/_modals.html' %}
+    <script src="/static/js/common.js"></script>
+
+    <script>
+        const DEPT_NAME = "{{ dept }}";
+
+        // 初始化员工出勤率排名图（居中配置优化）
+        const empAttendanceRankChart = echarts.init(document.getElementById('empAttendanceRankChart'));
+        const empRankOption = {
+            tooltip: {
+                trigger: 'axis',
+                textStyle: { fontSize: 12 },
+                formatter: '{b}: {c}%'
+            },
+            grid: {
+                left: '5%',    // 左右边距对称，水平居中
+                right: '5%',
+                bottom: '8%',
+                top: '5%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                data: [], // 动态数据
+                axisLabel: { fontSize: 12 },
+                axisLine: { lineStyle: { color: '#E5E7EB' } },
+                alignTicks: true // X轴刻度居中
+            },
+            yAxis: {
+                type: 'value',
+                max: 100,
+                min: 0, // 调整最小值
+                axisLabel: {
+                    fontSize: 12,
+                    formatter: '{value}%'
+                },
+                axisLine: { lineStyle: { color: '#E5E7EB' } },
+                splitLine: { lineStyle: { color: '#F3F4F6' } },
+                alignTicks: true // Y轴刻度居中
+            },
+            series: [{
+                name: '出勤率',
+                type: 'bar',
+                data: [], // 动态数据
+                itemStyle: {
+                    color: function(params) {
+                        const colorList = ['#3B82F6', '#1A365D', '#6B7280', '#9CA3AF', '#D1D5DB', '#EF4444', '#10B981', '#F59E0B'];
+                        return colorList[params.dataIndex % colorList.length];
+                    }
+                },
+                barWidth: '60%',
+                barMaxWidth: 28
+            }],
+        };
+        empAttendanceRankChart.setOption(empRankOption);
+
+        // 初始化部门异常类型分布图（居中配置优化）
+        const deptAbnormalTypeChart = echarts.init(document.getElementById('deptAbnormalTypeChart'));
+        const abnormalDistOption = {
+            tooltip: {
+                trigger: 'item',
+                textStyle: { fontSize: 12 },
+                formatter: '{b}: {c} ({d}%)'
+            },
+            legend: {
+                orient: 'vertical',
+                right: '5%',    // 调整图例边距，适配居中布局
+                top: '50%',
+                transform: 'translateY(-50%)', // 精准垂直居中
+                textStyle: { fontSize: 12 }
+            },
+            series: [{
+                name: '异常类型',
+                type: 'pie',
+                radius: ['40%', '70%'],
+                center: ['40%', '50%'], // 饼图精准居中（避开图例）
+                data: [], // 动态数据
+                label: {
+                    fontSize: 12,
+                    formatter: '{b}: {d}%'
+                },
+                color: ['#F59E0B', '#EF4444', '#9CA3AF', '#6B7280']
+            }]
+        };
+        deptAbnormalTypeChart.setOption(abnormalDistOption);
+
+        // 响应式适配
+        window.addEventListener('resize', function() {
+            empAttendanceRankChart.resize();
+            deptAbnormalTypeChart.resize();
+        });
+
+        // 加载数据
+        document.addEventListener('DOMContentLoaded', function() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const titleEl = document.getElementById('abnormal-detail-title');
+            if (titleEl) {
+                titleEl.textContent = `${DEPT_NAME}${year}年${month}月异常考勤明细（最近10条）`;
+            }
+            fetchDashboardData();
+        });
+
+        function fetchDashboardData() {
+            fetch('/api/manager/dashboard/data')
+                .then(response => response.json())
+                .then(res => {
+                    if (res.code === 200) {
+                        updateDashboard(res.data);
+                    } else {
+                        console.error('加载数据失败: ' + res.msg);
+                    }
+                })
+                .catch(err => console.error(err));
+        }
+
+        function updateDashboard(data) {
+            // Update stats
+            const s = data.stats;
+            document.getElementById('val-emp-count').textContent = s.emp_count;
+            updateTrend('trend-emp', s.emp_diff, '人');
+            
+            document.getElementById('val-attendance').textContent = s.attendance_rate + '%';
+            updateTrend('trend-attendance', s.rate_diff, '%');
+            
+            document.getElementById('val-abnormal').textContent = s.abnormal_count;
+            updateTrend('trend-abnormal', s.abnormal_diff_percent, '%', 'inverse');
+            
+            document.getElementById('val-late').textContent = s.avg_late + '分钟';
+            updateTrend('trend-late', s.late_diff, '分钟', 'inverse');
+
+            // Update charts
+            empAttendanceRankChart.setOption({
+                xAxis: { data: data.charts.rank.names },
+                series: [{ data: data.charts.rank.rates }]
+            });
+            
+            deptAbnormalTypeChart.setOption({
+                series: [{ data: data.charts.dist }]
+            });
+
+            // Update table
+            const tbody = document.getElementById('abnormal-table-body');
+            tbody.innerHTML = '';
+            if (data.table && data.table.length > 0) {
+                data.table.forEach(row => {
+                    const tr = document.createElement('tr');
+                    let actionBtn = '';
+                    if (row.is_processed === 0) {
+                        actionBtn = ` <button class="btn btn-primary" onclick="openProcessModal(${row.id})" style="padding: 4px 8px; font-size: 12px; margin-left: 8px;">处理</button>`;
+                    }
+                    
+                    tr.innerHTML = `
+                        <td>${row.name}</td>
+                        <td>${row.date}</td>
+                        <td>${row.type}</td>
+                        <td>${row.duration}</td>
+                        <td>${row.remark}</td>
+                        <td>
+                            <span class="status-badge ${row.status_class || ''}">${row.status_text}</span>
+                            ${actionBtn}
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;">暂无数据</td></tr>';
+            }
+        }
+
+        function updateTrend(id, val, unit, mode = 'normal') {
+            const el = document.getElementById(id);
+            if (val > 0) {
+                el.className = mode === 'inverse' ? 'card-trend trend-down' : 'card-trend trend-up';
+                el.innerHTML = `<i class="fa-solid fa-arrow-up"></i> ${val}${unit} 较上月`;
+            } else if (val < 0) {
+                el.className = mode === 'inverse' ? 'card-trend trend-up' : 'card-trend trend-down';
+                el.innerHTML = `<i class="fa-solid fa-arrow-down"></i> ${Math.abs(val)}${unit} 较上月`;
+            } else {
+                el.className = 'card-trend';
+                el.innerHTML = `<i class="fa-solid fa-minus"></i> 持平`;
+            }
+        }
+        
+        let currentProcessId = null;
+
+        function openProcessModal(id) {
+            currentProcessId = id;
+            document.getElementById('process-modal').style.display = 'flex';
+            document.getElementById('process-action').value = 'approve';
+            document.getElementById('process-remark').value = '';
+        }
+
+        function closeProcessModal() {
+            document.getElementById('process-modal').style.display = 'none';
+            currentProcessId = null;
+        }
+
+        function submitProcess() {
+            if (!currentProcessId) return;
+            
+            const action = document.getElementById('process-action').value;
+            const remark = document.getElementById('process-remark').value;
+            
+            fetch('/api/manager/abnormal/process', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: currentProcessId, action, remark })
+            }).then(r => r.json()).then(res => {
+                if (res.code === 200) {
+                    showModal('处理成功', 'success');
+                    closeProcessModal();
+                    fetchDashboardData();
+                } else {
+                    showModal(res.msg || '处理失败', 'error');
+                }
+            });
+        }
+        
+        // 点击弹窗外部关闭
+        window.addEventListener('click', function(e) {
+            const modal = document.getElementById('process-modal');
+            if (e.target === modal) {
+                closeProcessModal();
+            }
+        });
+
+        function downloadDataUrl(dataUrl, filename) {
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+
+        function getCurrentMonthStr() {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            return `${y}-${m}`;
+        }
+
+        function exportChartPng(chart, baseName) {
+            const monthStr = getCurrentMonthStr();
+            const dataUrl = chart.getDataURL({
+                type: 'png',
+                pixelRatio: 2,
+                backgroundColor: '#ffffff'
+            });
+            const filename = `${DEPT_NAME}-${monthStr}-${baseName}.png`;
+            downloadDataUrl(dataUrl, filename);
+        }
+
+        document.querySelectorAll('.export-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const chartKey = btn.dataset.chart;
+                if (chartKey === 'empAttendanceRank') {
+                    exportChartPng(empAttendanceRankChart, '员工出勤率排名');
+                } else if (chartKey === 'deptAbnormalType') {
+                    exportChartPng(deptAbnormalTypeChart, '异常类型分布');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

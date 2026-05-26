@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>考勤数据分析系统 - 登录</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fontawesome/css/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+</head>
+<body>
+<div class="login-container">
+    <div class="login-header">
+        <h1><i class="fa-solid fa-clock"></i> 考勤数据分析系统</h1>
+        <p>高效管理考勤数据，助力企业决策</p>
+    </div>
+    <form method="POST" action="{{ url_for('login') }}" onsubmit="disableButton()">
+        {% if error %}
+        <div class="error-tip"><i class="fa-solid fa-circle-exclamation"></i> {{ error }}</div>
+        {% endif %}
+        <div class="form-group">
+            <label for="username">账号</label>
+            <div class="form-control-icon">
+                <input type="text" id="username" name="username" class="form-control" placeholder="请输入登录账号"
+                       required value="{{ request.form.username if request.form.username else '' }}">
+                <i class="fa-solid fa-user"></i>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="password">密码</label>
+            <div class="form-control-icon">
+                <input type="password" id="password" name="password" class="form-control" placeholder="请输入密码"
+                       required>
+                <i class="fa-solid fa-lock"></i>
+            </div>
+        </div>
+        <button type="submit" class="btn-login" id="loginBtn">登录</button>
+    </form>
+    <div class="footer-text">
+        © 2025 考勤数据分析系统 - 极简高效 · 专业可靠
+        <br>
+        <small>测试账号：admin（密码admin123） | tech_manager（manager123） | zhangsan（employee123）</small>
+    </div>
+</div>
+<script>
+    // 防重复提交：禁用登录按钮
+    function disableButton() {
+        const btn = document.getElementById('loginBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 登录中...';
+    }
+</script>
+</body>
+</html>

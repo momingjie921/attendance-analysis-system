@@ -1,0 +1,37 @@
+<!-- Common Modal -->
+<div class="modal-overlay" id="common-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <div id="modal-title" style="display: flex; justify-items: center;align-items: center">
+                <i class="fa-solid fa-circle-info"></i>
+                <span>提示</span>
+            </div>
+            <i class="fa-solid fa-xmark modal-close" onclick="closeModal()"></i>
+        </div>
+        <div class="modal-body" id="modal-message">
+            模态框内容
+        </div>
+        <div class="modal-footer">
+            <button class="modal-btn modal-btn-primary" onclick="closeModal()">确定</button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="confirm-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>
+                <i class="fa-solid fa-circle-question" style="color: #3B82F6; font-size: 20px"></i> 确认操作
+            </h3>
+            <i class="fa-solid fa-xmark modal-close" onclick="closeConfirmModal()"></i>
+        </div>
+        <div class="modal-body" id="confirm-message">
+            确认信息
+        </div>
+        <div class="modal-footer">
+            <button class="modal-btn" id="confirm-btn-no" onclick="closeConfirmModal(false)" style="background-color: #F3F4F6; color: #6B7280; border: 1px solid #E5E7EB; margin-right: 8px;">取消</button>
+            <button class="modal-btn modal-btn-primary" id="confirm-btn-yes" onclick="closeConfirmModal(true)">确定</button>
+        </div>
+    </div>
+</div>

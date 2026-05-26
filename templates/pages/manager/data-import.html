@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据导入 - 考勤数据分析系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fontawesome/css/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body {
+            background-color: #F9FAFB;
+            color: #111827;
+        }
+
+        .layout {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 240px;
+            background-color: #1A365D;
+            color: #FFFFFF;
+            padding: 16px 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 0 16px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 16px;
+        }
+
+        .sidebar-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 核心修复1：菜单容器内边距优化 */
+        .sidebar-menu {
+            list-style: none;
+            padding: 0 8px;
+        }
+
+        /* 核心修复2：菜单项圆角优化，提升交互质感 */
+        .sidebar-menu li {
+            margin-bottom: 4px;
+            border-radius: 4px;
+        }
+
+        /* 核心修复3：链接铺满父元素，消除布局偏移 */
+        .sidebar-menu a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            font-size: 14px;
+            border-left: 3px solid transparent;
+            transition: all 0.2s ease;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+        }
+
+        /* 核心修复4：固定图标尺寸，统一对齐 */
+        .sidebar-menu a i {
+            width: 16px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .sidebar-menu a:hover, .sidebar-menu a.active {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #FFFFFF;
+            border-left-color: #3B82F6;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            margin-left: 240px;
+            width: calc(100% - 240px);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .header-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1A365D;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .user-profile img {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #E5E7EB;
+        }
+
+        .user-profile span {
+            font-size: 14px;
+            color: #6B7280;
+        }
+
+        /* import-card - 新增hover效果 */
+        .import-card {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 32px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin: 0 auto;
+        }
+
+        .import-card h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        /* ========== 重点修改：upload-area 样式 ========== */
+        .upload-area {
+            /* 1. 显式声明块级元素，确保盒模型完整 */
+            display: block;
+            /* 2. 分离圆角与虚线边框：用内层元素承载内容，外层仅做圆角容器，避免虚线圆角断裂 */
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 24px;
+            cursor: pointer;
+        }
+
+        /* 新增：内层虚线边框容器 */
+        .upload-area::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 2px dashed #E5E7EB;
+            border-radius: 8px;
+            transition: border-color 0.2s ease;
+        }
+
+        /* 新增：内容容器（避免点击事件被伪元素遮挡） */
+        .upload-area-content {
+            position: relative;
+            z-index: 1;
+            padding: 48px 24px;
+            text-align: center;
+        }
+
+        /* 修复hover效果：作用于伪元素 */
+        .upload-area:hover::before {
+            border-color: #3B82F6;
+        }
+
+        /* ========== 原有样式迁移至 content 容器 ========== */
+        .upload-area-content i {
+            font-size: 48px;
+            color: #6B7280;
+            margin-bottom: 16px;
+            /* 新增图标hover过渡 */
+            transition: color 0.2s ease;
+        }
+        /* 新增上传区域图标hover效果 */
+        .upload-area:hover .upload-area-content i {
+            color: #3B82F6;
+        }
+
+        .upload-area-content p {
+            font-size: 14px;
+            color: #6B7280;
+            margin-bottom: 8px;
+            /* 新增文字hover过渡 */
+            transition: color 0.2s ease;
+        }
+        /* 新增上传区域文字hover效果 */
+        .upload-area:hover .upload-area-content p {
+            color: #1A365D;
+        }
+
+        .upload-area-content .tip {
+            font-size: 12px;
+            color: #9CA3AF;
+        }
+
+        /* ========== 修复结束 ========== */
+
+        #fileInput {
+            display: none;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            color: #111827;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #111827;
+            transition: border-color 0.2s ease;
+        }
+        /* 新增输入框hover效果 */
+        .form-control:hover {
+            border-color: #9CA3AF;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #3B82F6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        /* ========== 统一按钮样式（和其他页面保持一致） ========== */
+        .btn-group {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-top: 24px;
+        }
+
+        /* 基础按钮样式（统一尺寸/圆角/字体） */
+        .btn {
+            padding: 8px 16px; /* 和time-filter-btn等按钮统一内边距 */
+            border-radius: 6px; /* 统一圆角为6px（其他页面按钮标准） */
+            font-size: 14px; /* 统一字体大小为14px */
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            display: inline-flex; /* 保证图标和文字对齐 */
+            align-items: center;
+            gap: 8px; /* 图标和文字间距（和其他页面统一） */
+        }
+
+        /* 主按钮（开始导入）：统一为主题色#3B82F6 */
+        .btn-primary {
+            background-color: #3B82F6; /* 替换原有#1A365D，和其他页面主按钮一致 */
+            color: #FFFFFF;
+        }
+
+        .btn-primary:hover {
+            background-color: #2563EB; /* 统一hover深色，和其他页面一致 */
+        }
+
+        /* 次要按钮（重置）：统一为浅灰风格 */
+        .btn-secondary {
+            background-color: #F3F4F6;
+            color: #6B7280;
+            border: 1px solid #E5E7EB; /* 新增边框，和filter-input等控件统一 */
+        }
+
+        .btn-secondary:hover {
+            background-color: #E5E7EB;
+            color: #111827;
+        }
+
+        /* 禁用状态（导入中）：统一样式 */
+        .btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none !important; /* 禁用时取消上移 */
+        }
+
+        .field-map {
+            background-color: #F9FAFB;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 24px;
+            border: 1px solid #E5E7EB;
+        }
+
+
+        .field-map h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 16px;
+        }
+
+        .field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+
+        .field-row label {
+            font-size: 13px;
+            color: #6B7280;
+            align-self: center;
+        }
+
+        .select-wrapper {
+            position: relative; /* 箭头基于此定位 */
+            width: 100%; /* 铺满field-row的第二列 */
+        }
+
+        .field-row select {
+            padding: 8px 12px;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            font-size: 13px;
+            width: 100%; /* 铺满容器 */
+            /* 隐藏默认箭头 */
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            /* 右侧预留箭头空间（比箭头right值大10px） */
+            padding-right: 30px;
+            background-color: #fff;
+            /* 新增下拉框hover过渡 */
+            transition: border-color 0.2s ease;
+        }
+        /* 新增下拉框hover效果 */
+        .field-row select:hover {
+            border-color: #9CA3AF;
+        }
+
+        .select-wrapper::after {
+            content: "";
+            /* 绘制向下箭头 */
+            border: 4px solid transparent; /* 尺寸适配13px字体，比之前小1px更协调 */
+            border-top-color: #6B7280;
+            border-bottom: none;
+            /* 核心：调整箭头位置（right越大，箭头越靠左） */
+            position: absolute;
+            right: 12px; /* 左移关键：默认12px，想更左改15px/18px */
+            top: 50%;
+            transform: translateY(-50%);
+            /* 防止箭头遮挡点击 */
+            pointer-events: none;
+            /* 确保箭头在select上方 */
+            z-index: 2;
+        }
+
+        /* 响应式适配 */
+        @media (max-width: 768px) {
+            .layout {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                padding: 8px 0;
+                position: static;
+                height: auto;
+                overflow-y: visible;
+            }
+
+            .sidebar-menu {
+                display: flex;
+                overflow-x: auto;
+                padding: 0; /* 移动端移除菜单内边距 */
+            }
+
+            .sidebar-menu li {
+                margin-bottom: 0;
+                margin-right: 4px; /* 移动端菜单项横向间距 */
+            }
+
+            .sidebar-menu a {
+                padding: 12px 12px; /* 移动端缩小内边距 */
+                white-space: nowrap; /* 防止文字换行 */
+            }
+
+            .main-content {
+                padding: 16px;
+                margin-left: 0;
+                width: 100%;
+            }
+
+            .import-card {
+                padding: 24px 16px;
+                max-width: 100%; /* 移动端宽度100% */
+            }
+
+            .field-row {
+                grid-template-columns: 1fr;
+            }
+
+            .btn-group {
+                flex-direction: column;
+            }
+
+            /* 移动端按钮宽度100% */
+            .btn {
+                width: 100%;
+                justify-content: center; /* 移动端文字+图标居中 */
+            }
+
+            /* 移动端优化上传区域最小高度 */
+            .upload-area {
+                min-height: 200px;
+            }
+
+            .upload-area-content {
+                padding: 24px 16px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                height: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <!-- 侧边栏（根据角色动态渲染，此处为管理员示例） -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fa-solid fa-clock"></i> 考勤管理系统</h2>
+        </div>
+        <!-- 部门经理数据导入页的侧边栏 -->
+        <ul class="sidebar-menu">
+            {% if session.role == 'manager' %}
+            <li><a href="/manager/dashboard"><i class="fa-solid fa-tachometer-alt"></i> 部门数据</a></li>
+            <li><a href="/manager/leave-approval"><i class="fa-solid fa-check-to-slot"></i> 请假审批</a></li>
+            <li><a href="/employee/leave-apply"><i class="fa-solid fa-paper-plane"></i> 请假申请</a></li>
+            <li><a href="/manager/data-import" class="active"><i class="fa-solid fa-file-excel"></i> 数据导入</a></li>
+            <li><a href="/manager/departmental-analysis"><i class="fa-solid fa-chart-bar"></i> 部门分析</a></li>
+            <li><a href="/manager/departmental-abnormal"><i class="fa-solid fa-exclamation-triangle"></i> 部门异常</a></li>
+            <li><a href="/employee/dashboard"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+            <li><a href="/employee/attendance-record"><i class="fa-solid fa-calendar-check"></i> 打卡记录</a></li>
+            <li><a href="/employee/abnormal-record"><i class="fa-solid fa-exclamation-circle"></i> 异常记录</a></li>
+            {% elif session.role == 'admin' %}
+            <li><a href="/admin/dashboard"><i class="fa-solid fa-tachometer-alt"></i> 数据总览</a></li>
+            <li><a href="/admin/leave-approval"><i class="fa-solid fa-check-to-slot"></i> 请假审批</a></li>
+            <li><a href="/employee/leave-apply"><i class="fa-solid fa-paper-plane"></i> 请假申请</a></li>
+            <li><a href="/admin/data-import" class="active"><i class="fa-solid fa-file-excel"></i> 数据导入</a></li>
+            <li><a href="/employee/dashboard"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+            {% else %}
+            <li><a href="/employee/dashboard"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+            <li><a href="/employee/attendance-record"><i class="fa-solid fa-calendar-check"></i> 打卡记录</a></li>
+            <li><a href="/employee/abnormal-record"><i class="fa-solid fa-exclamation-circle"></i> 异常记录</a></li>
+            <li><a href="/employee/leave-apply"><i class="fa-solid fa-calendar-plus"></i> 请假申请</a></li>
+            {% endif %}
+            <li><a href="/logout"><i class="fa-solid fa-sign-out-alt"></i> 退出登录</a></li>
+        </ul>
+    </aside>
+
+    <!-- 数据导入主内容 -->
+    <main class="main-content">
+        <div class="header">
+            <h1 class="header-title">考勤数据导入</h1>
+            <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name={{ name[0] }}&background=1A365D&color=fff&rounded=true&bold=true&font-size=0.6" alt="Avatar">
+                <span>{{ name }}（{{ session.role }}）</span>
+            </div>
+        </div>
+
+        <div class="import-card">
+            <h3>批量导入考勤数据</h3>
+
+            <!-- 文件上传区域（修改DOM结构，新增content容器） -->
+            <label for="fileInput" class="upload-area">
+                <div class="upload-area-content">
+                    <i class="fa-solid fa-cloud-upload"></i>
+                    <p>点击或拖拽文件至此处上传</p>
+                    <p class="tip">支持格式：Excel (.xlsx/.xls)、CSV (.csv) | 单文件最大10MB</p>
+                </div>
+                <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" multiple>
+            </label>
+
+
+
+            <!-- 字段映射（默认显示） -->
+            <div class="field-map" id="field-map-area">
+                <h4>字段映射配置（自动识别后可调整）</h4>
+                <div class="field-row">
+                    <label>系统字段：姓名 <span style="color:red">*</span></label>
+                    <div class="select-wrapper">
+                        <select id="map-name">
+                            <option value="">文件字段：姓名</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field-row">
+                    <label>系统字段：部门 <span style="color:red">*</span></label>
+                    <div class="select-wrapper">
+                        <select id="map-dept">
+                             <option value="">文件字段：部门</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="font-size:12px;color:#EF4444;margin-top:-8px;margin-bottom:12px;text-align:right;">
+                    * 仅限导入本部门员工数据，其他部门数据将被自动跳过或报错
+                </div>
+                <div class="field-row">
+                    <label>系统字段：上班打卡时间</label>
+                    <div class="select-wrapper">
+                        <select id="map-check-in">
+                            <option value="">文件字段：上班打卡时间</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field-row">
+                    <label>系统字段：下班打卡时间</label>
+                    <div class="select-wrapper">
+                        <select id="map-check-out">
+                            <option value="">文件字段：下班打卡时间</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field-row">
+                    <label>系统字段：异常标识（可选）</label>
+                    <div class="select-wrapper">
+                        <select id="map-abnormal-flag">
+                            <option value="">文件字段：异常标识</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field-row" style="grid-template-columns: 1fr;">
+                     <label style="display:flex;align-items:center;gap:8px;">
+                        <input type="checkbox" id="create-new" style="width:auto;"> 
+                        自动创建部门内的新员工 (仅限本部门)
+                     </label>
+                </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="btn-group">
+                <button class="btn btn-secondary" id="download-template-btn"><i class="fa-solid fa-download"></i> 下载模板</button>
+                <button class="btn btn-primary" id="start-import-btn" disabled><i class="fa-solid fa-upload"></i> 开始导入</button>
+            </div>
+        </div>
+    </main>
+</div>
+
+{% include 'includes/_modals.html' %}
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+<script>
+        let currentFile = null;
+
+        // 页面逻辑：重置上传区域
+    function resetUploadArea() {
+        document.getElementById('fileInput').value = '';
+        
+        const uploadText = document.querySelector('.upload-area-content p');
+        if (uploadText) {
+            uploadText.textContent = '点击或拖拽文件至此处上传';
+            uploadText.style.color = '#6B7280';
+            uploadText.style.fontWeight = 'normal';
+        }
+        
+        const uploadIcon = document.querySelector('.upload-area-content i');
+        if (uploadIcon) {
+            uploadIcon.className = 'fa-solid fa-cloud-upload';
+            uploadIcon.style.color = '#6B7280';
+        }
+    }
+    
+    // 下载模板
+    document.getElementById('download-template-btn').addEventListener('click', function () {
+        window.location.href = '/api/export?type=import_template';
+    });
+
+        // 拖拽上传逻辑
+        const uploadArea = document.querySelector('.upload-area');
+        const fileInput = document.getElementById('fileInput');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight(e) {
+            uploadArea.classList.add('drag-over');
+            // 视觉增强
+            const uploadIcon = document.querySelector('.upload-area-content i');
+            if (uploadIcon) uploadIcon.style.transform = 'scale(1.1)';
+        }
+
+        function unhighlight(e) {
+            uploadArea.classList.remove('drag-over');
+            const uploadIcon = document.querySelector('.upload-area-content i');
+            if (uploadIcon) uploadIcon.style.transform = 'scale(1)';
+        }
+
+        uploadArea.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+
+            if (files.length > 0) {
+                fileInput.files = files;
+                const event = new Event('change');
+                fileInput.dispatchEvent(event);
+            }
+        }
+
+        // 文件上传选择事件
+        document.getElementById('fileInput').addEventListener('change', function (e) {
+            const files = e.target.files;
+            if (files.length > 0) {
+                const fileName = files[0].name;
+                const validExtensions = ['.xlsx', '.xls', '.csv'];
+                const fileExt = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
+
+                if (!validExtensions.includes(fileExt)) {
+                     showModal('不支持的文件格式！仅支持 Excel (.xlsx/.xls) 或 CSV (.csv)', 'warning');
+                     resetUploadArea();
+                     return;
+                }
+
+                currentFile = files[0];
+                
+                // 更新UI显示文件名
+                const uploadText = document.querySelector('.upload-area-content p');
+                if (uploadText) {
+                    uploadText.textContent = `已选择文件：${fileName}`;
+                    uploadText.style.color = '#1A365D';
+                    uploadText.style.fontWeight = '500';
+                }
+                const uploadIcon = document.querySelector('.upload-area-content i');
+                if (uploadIcon) {
+                    uploadIcon.className = 'fa-solid fa-file-excel';
+                    uploadIcon.style.color = '#10B981';
+                }
+
+                analyzeFile(currentFile);
+            } else {
+                resetUploadArea();
+            }
+        });
+
+        function analyzeFile(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // 显示加载状态
+        const uploadText = document.querySelector('.upload-area-content p');
+        const originalText = uploadText.textContent;
+        uploadText.textContent = '正在解析文件...';
+        
+        fetch('/api/manager/import/analyze', {
+            method: 'POST',
+            body: formData
+        })
+        .then(r => r.json())
+        .then(res => {
+            uploadText.textContent = file.name; // 显示文件名
+            
+            if (res.code === 200) {
+                const cols = res.data.columns;
+                const mapping = res.data.mapping;
+                
+                // 填充下拉框
+                const selects = ['map-name', 'map-dept', 'map-check-in', 'map-check-out', 'map-abnormal-flag'];
+                selects.forEach(id => {
+                    const sel = document.getElementById(id);
+                    sel.innerHTML = '<option value="">-- 请选择 --</option>';
+                    cols.forEach(col => {
+                        const opt = document.createElement('option');
+                        opt.value = col;
+                        opt.textContent = col;
+                        sel.appendChild(opt);
+                    });
+                });
+                
+                // 设置默认值
+                if (mapping.name) document.getElementById('map-name').value = mapping.name;
+                if (mapping.dept) document.getElementById('map-dept').value = mapping.dept;
+                if (mapping.check_in) document.getElementById('map-check-in').value = mapping.check_in;
+                if (mapping.check_out) document.getElementById('map-check-out').value = mapping.check_out;
+                if (mapping.abnormal_flag) document.getElementById('map-abnormal-flag').value = mapping.abnormal_flag;
+                
+                document.getElementById('start-import-btn').disabled = false;
+            } else {
+                showModal(res.msg || '解析失败', 'error');
+                uploadText.textContent = originalText;
+                resetForm();
+            }
+        })
+        .catch(err => {
+            showModal('文件解析失败', 'error');
+            uploadText.textContent = originalText;
+            resetForm();
+        });
+    }
+
+    // 导入按钮点击事件
+    document.getElementById('start-import-btn').addEventListener('click', function () {
+        if (!currentFile) return;
+        
+        const btn = this;
+        const originalHtml = btn.innerHTML;
+        
+        // 验证必填
+        const mapName = document.getElementById('map-name').value;
+        const mapDept = document.getElementById('map-dept').value;
+        
+        if (!mapName || !mapDept) {
+            showModal('请至少完成姓名和部门的字段映射', 'warning');
+            return;
+        }
+
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 导入中...';
+        btn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('file', currentFile);
+        formData.append('name', mapName);
+        formData.append('dept', mapDept);
+        formData.append('check_in', document.getElementById('map-check-in').value);
+        formData.append('check_out', document.getElementById('map-check-out').value);
+        formData.append('abnormal_flag', document.getElementById('map-abnormal-flag').value);
+        formData.append('create_new', document.getElementById('create-new').checked ? 'true' : 'false');
+
+        fetch('/api/manager/import/attendance', {
+            method: 'POST',
+            body: formData
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.code === 200) {
+                const d = res.data;
+                let msg = `成功: ${d.success} 条<br>失败: ${d.fail} 条`;
+                if (d.skipped > 0) msg += `<br>跳过: ${d.skipped} 条 (权限不足或不匹配)`;
+                if (d.errors && d.errors.length > 0) {
+                    msg += '<br><br>错误示例：<br>' + d.errors.join('<br>');
+                }
+                showModal(msg, d.fail > 0 ? 'warning' : 'success');
+                
+                // 重置
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> 导入成功';
+                btn.style.backgroundColor = '#10B981';
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                    btn.style.backgroundColor = '';
+                    btn.disabled = false;
+                    resetForm();
+                }, 3000);
+            } else {
+                showModal('导入失败: ' + (res.msg || '未知错误'), 'error');
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+        })
+        .catch(err => {
+            showModal('请求失败，请稍后重试', 'error');
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        });
+    });
+
+    function resetForm() {
+        currentFile = null;
+        resetUploadArea();
+        document.getElementById('start-import-btn').disabled = true;
+        document.getElementById('create-new').checked = false;
+        
+        // 重置下拉框为默认显示
+        const selects = document.querySelectorAll('.field-row select');
+        const defaultTexts = {
+            'map-name': '文件字段：姓名',
+            'map-dept': '文件字段：部门',
+            'map-check-in': '文件字段：上班打卡时间',
+            'map-check-out': '文件字段：下班打卡时间',
+            'map-abnormal-flag': '文件字段：异常标识'
+        };
+        
+        selects.forEach(sel => {
+            const id = sel.id;
+            sel.innerHTML = `<option value="">${defaultTexts[id] || '请选择'}</option>`;
+        });
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>规则配置 - 考勤数据分析系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fontawesome/css/all.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/common.css') }}">
+    <style>
+        /* 规则配置页专属样式 */
+        .config-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #F3F4F6;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .btn-group {
+            display: flex;
+            justify-content: flex-end;
+            gap: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .config-card {
+                padding: 16px;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .btn-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <!-- 侧边栏 -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fa-solid fa-clock"></i> 考勤管理系统</h2>
+        </div>
+        <ul class="sidebar-menu">
+            <li><a href="/admin/dashboard">
+                <i class="fa-solid fa-tachometer-alt"></i> 数据总览
+            </a></li>
+            <li><a href="/admin/attendance-warning">
+                <i class="fa-solid fa-bell"></i> 考勤预警
+            </a></li>
+            <li><a href="/admin/leave-approval">
+                <i class="fa-solid fa-check-to-slot"></i> 请假审批
+            </a></li>
+            <li><a href="/admin/data-import">
+                <i class="fa-solid fa-file-excel"></i> 数据导入
+            </a></li>
+            <li><a href="/admin/employee-management">
+                <i class="fa-solid fa-users"></i> 员工管理
+            </a></li>
+            <li><a href="/admin/department-management">
+                <i class="fa-solid fa-building"></i> 部门管理
+            </a></li>
+            <li><a href="/admin/rule-config" class="active">
+                <i class="fa-solid fa-cog"></i> 规则配置
+            </a></li>
+            <li><a href="/admin/holiday-calendar">
+                <i class="fa-solid fa-calendar-days"></i> 节假日管理
+            </a></li>
+            <li><a href="/admin/data-backup">
+                <i class="fa-solid fa-database"></i> 数据备份
+            </a></li>
+            <li><a href="/logout">
+                <i class="fa-solid fa-sign-out-alt"></i> 退出登录
+            </a></li>
+        </ul>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+        <div class="header">
+            <h1 class="header-title">考勤规则配置</h1>
+            <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name={{ name[0] }}&background=1A365D&color=fff&rounded=true&bold=true&font-size=0.6" alt="Avatar">
+                <span>{{ name }}（{{ session.role }}）</span>
+            </div>
+        </div>
+
+        <!-- 基础打卡规则 -->
+        <div class="config-card">
+            <h3>基础打卡规则</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="workStartTime">上班打卡时间</label>
+                    <input type="time" id="workStartTime" class="form-control" value="09:00" required>
+                    <p class="form-tip">默认上班打卡截止时间，超出则判定为迟到</p>
+                </div>
+                <div class="form-group">
+                    <label for="workEndTime">下班打卡时间</label>
+                    <input type="time" id="workEndTime" class="form-control" value="18:00" required>
+                    <p class="form-tip">默认下班打卡开始时间，提前则判定为早退</p>
+                </div>
+                <div class="form-group">
+                    <label for="lateThreshold">迟到阈值（分钟）</label>
+                    <input type="number" id="lateThreshold" class="form-control" value="15" min="0" max="120" required>
+                    <p class="form-tip">超过该迟到阈值记为迟到</p>
+                </div>
+                <div class="form-group">
+                    <label for="earlyLeaveThreshold">早退阈值（分钟）</label>
+                    <input type="number" id="earlyLeaveThreshold" class="form-control" value="15" min="0" max="120"
+                           required>
+                    <p class="form-tip">超过该早退阈值记为早退</p>
+                </div>
+                <div class="form-group">
+                    <label for="absentThreshold">旷工判定时长（小时）</label>
+                    <input type="number" id="absentThreshold" class="form-control" value="4" min="1" max="8" required>
+                    <p class="form-tip">当日打卡时长不足该值判定为旷工</p>
+                </div>
+                <div class="form-group">
+                    <label for="checkInValidTime">打卡有效时长（小时）</label>
+                    <input type="number" id="checkInValidTime" class="form-control" value="8" min="6" max="12" required>
+                    <p class="form-tip">每日有效打卡时长，达标则记为全勤</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 异常处理规则 -->
+        <div class="config-card">
+            <h3>异常处理规则</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="lateMaxCount">月度迟到最大次数</label>
+                    <input type="number" id="lateMaxCount" class="form-control" value="3" min="0" max="20" required>
+                    <p class="form-tip">超过该次数将触发考勤警告</p>
+                </div>
+                <div class="form-group">
+                    <label for="absentMaxCount">月度旷工最大次数</label>
+                    <input type="number" id="absentMaxCount" class="form-control" value="1" min="0" max="10" required>
+                    <p class="form-tip">超过该次数将触发人事审核</p>
+                </div>
+                <div class="form-group">
+                    <label for="exceptionReviewTime">异常审核时效（小时）</label>
+                    <input type="number" id="exceptionReviewTime" class="form-control" value="24" min="1" max="72"
+                           required>
+                    <p class="form-tip">异常考勤需在此时效内完成审核</p>
+                </div>
+                <div class="form-group">
+                    <label for="holidayCheckRule">节假日打卡规则</label>
+                    <select id="holidayCheckRule" class="form-control" required>
+                        <option value="0">无需打卡</option>
+                        <option value="1">按正常时间打卡</option>
+                        <option value="2">按加班规则打卡</option>
+                    </select>
+                    <p class="form-tip">节假日及休息日的打卡判定规则</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 假期规则 -->
+        <div class="config-card">
+            <h3>假期规则</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="annualLeaveDays">年度带薪年假（天）</label>
+                    <input type="number" id="annualLeaveDays" class="form-control" value="10" min="5" max="30" required>
+                    <p class="form-tip">员工每年可享受的带薪年假天数</p>
+                </div>
+                <div class="form-group">
+                    <label for="sickLeaveDays">月度带薪病假（天）</label>
+                    <input type="number" id="sickLeaveDays" class="form-control" value="1" min="0" max="5" required>
+                    <p class="form-tip">员工每月可享受的带薪病假天数</p>
+                </div>
+                <div class="form-group">
+                    <label for="leaveApplyNotice">请假提前通知时长（小时）</label>
+                    <input type="number" id="leaveApplyNotice" class="form-control" value="4" min="1" max="72" required>
+                    <p class="form-tip">请假需提前此时长提交申请</p>
+                </div>
+            </div>
+
+            <!-- 保存按钮 -->
+            <div class="btn-group">
+                <button class="btn btn-secondary" id="recalcBtn">
+                    <i class="fa-solid fa-sync"></i> 重新计算历史数据
+                </button>
+                <button class="btn btn-secondary" id="resetBtn">
+                    <i class="fa-solid fa-undo"></i> 重置为默认值
+                </button>
+                <button class="btn btn-primary" id="saveBtn">
+                    <i class="fa-solid fa-save"></i> 保存配置
+                </button>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- 重新计算选择模态框 -->
+<div class="modal-overlay" id="recalcModal">
+    <div class="modal" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3><i class="fa-solid fa-sync"></i> 重新计算考勤数据</h3>
+            <i class="fa-solid fa-xmark modal-close" id="closeRecalc"></i>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom: 15px; color: #666;">将按照当前规则重新计算指定月份的历史考勤状态（迟到、早退、旷工等）。</p>
+            <div class="form-group">
+                <label for="recalcMonth">选择月份</label>
+                <input type="month" id="recalcMonth" class="form-control" required>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" id="cancelRecalc">取消</button>
+            <button class="btn btn-primary" id="confirmRecalc">开始重新计算</button>
+        </div>
+    </div>
+</div>
+
+<!-- 引入通用模态框 -->
+{% include 'includes/_modals.html' %}
+
+<!-- 引入通用JS -->
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+
+<script>
+    // 页面加载时获取配置
+    document.addEventListener('DOMContentLoaded', function() {
+        loadConfigs();
+    });
+
+    function loadConfigs() {
+        fetch('/api/config/rules')
+            .then(response => response.json())
+            .then(res => {
+                if (res.code === 200) {
+                    const data = res.data;
+                    document.getElementById('workStartTime').value = data.workStartTime || '09:00';
+                    document.getElementById('workEndTime').value = data.workEndTime || '18:00';
+                    document.getElementById('lateThreshold').value = data.lateThreshold || '15';
+                    document.getElementById('earlyLeaveThreshold').value = data.earlyLeaveThreshold || '15';
+                    document.getElementById('absentThreshold').value = data.absentThreshold || '4';
+                    document.getElementById('checkInValidTime').value = data.checkInValidTime || '8';
+                    document.getElementById('lateMaxCount').value = data.lateMaxCount || '3';
+                    document.getElementById('absentMaxCount').value = data.absentMaxCount || '1';
+                    document.getElementById('exceptionReviewTime').value = data.exceptionReviewTime || '24';
+                    document.getElementById('holidayCheckRule').value = data.holidayCheckRule || '0';
+                    document.getElementById('annualLeaveDays').value = data.annualLeaveDays || '10';
+                    document.getElementById('sickLeaveDays').value = data.sickLeaveDays || '1';
+                    document.getElementById('leaveApplyNotice').value = data.leaveApplyNotice || '4';
+                } else {
+                    showModal('获取配置失败：' + res.msg, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showModal('获取配置出错，请检查网络', 'error');
+            });
+    }
+
+    // 保存配置
+    document.getElementById('saveBtn').addEventListener('click', function () {
+        const workStartTime = document.getElementById('workStartTime').value;
+        const workEndTime = document.getElementById('workEndTime').value;
+
+        if (!workStartTime || !workEndTime) {
+            showModal('请填写完整的规则配置！', 'warning');
+            return;
+        }
+
+        const data = {
+            workStartTime: workStartTime,
+            workEndTime: workEndTime,
+            lateThreshold: document.getElementById('lateThreshold').value,
+            earlyLeaveThreshold: document.getElementById('earlyLeaveThreshold').value,
+            absentThreshold: document.getElementById('absentThreshold').value,
+            checkInValidTime: document.getElementById('checkInValidTime').value,
+            lateMaxCount: document.getElementById('lateMaxCount').value,
+            absentMaxCount: document.getElementById('absentMaxCount').value,
+            exceptionReviewTime: document.getElementById('exceptionReviewTime').value,
+            holidayCheckRule: document.getElementById('holidayCheckRule').value,
+            annualLeaveDays: document.getElementById('annualLeaveDays').value,
+            sickLeaveDays: document.getElementById('sickLeaveDays').value,
+            leaveApplyNotice: document.getElementById('leaveApplyNotice').value
+        };
+
+        const btn = this;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 保存中...';
+        btn.disabled = true;
+
+        fetch('/api/config/rules', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(res => {
+            if (res.code === 200) {
+                showModal('考勤规则配置保存成功！新规则将立即生效', 'success');
+            } else {
+                showModal('保存失败：' + res.msg, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showModal('保存出错，请检查网络', 'error');
+        })
+        .finally(() => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+    });
+
+    // 重置为默认值
+    document.getElementById('resetBtn').addEventListener('click', function () {
+        showConfirmModal('确定要重置为系统默认配置吗？当前配置将被覆盖！', function() {
+            document.getElementById('workStartTime').value = '09:00';
+            document.getElementById('workEndTime').value = '18:00';
+            document.getElementById('lateThreshold').value = '15';
+            document.getElementById('earlyLeaveThreshold').value = '15';
+            document.getElementById('absentThreshold').value = '4';
+            document.getElementById('checkInValidTime').value = '8';
+            document.getElementById('lateMaxCount').value = '3';
+            document.getElementById('absentMaxCount').value = '1';
+            document.getElementById('exceptionReviewTime').value = '24';
+            document.getElementById('holidayCheckRule').value = '0';
+            document.getElementById('annualLeaveDays').value = '10';
+            document.getElementById('sickLeaveDays').value = '1';
+            document.getElementById('leaveApplyNotice').value = '4';
+
+            showModal('已恢复默认值，请点击"保存配置"以生效！', 'info');
+        });
+    });
+
+    // 重新计算功能
+    const recalcModal = document.getElementById('recalcModal');
+    const recalcBtn = document.getElementById('recalcBtn');
+    const closeBtn = document.getElementById('closeRecalc');
+    const cancelRecalc = document.getElementById('cancelRecalc');
+    const confirmRecalc = document.getElementById('confirmRecalc');
+    const recalcMonthInput = document.getElementById('recalcMonth');
+
+    // 初始化默认月份为当前月
+    const now = new Date();
+    recalcMonthInput.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    recalcBtn.addEventListener('click', () => {
+        recalcModal.style.display = 'flex';
+    });
+
+    [closeBtn, cancelRecalc].forEach(el => {
+        el.addEventListener('click', () => {
+            recalcModal.style.display = 'none';
+        });
+    });
+
+    confirmRecalc.addEventListener('click', () => {
+        const month = recalcMonthInput.value;
+        if (!month) {
+            showModal('请选择需要重新计算的月份', 'warning');
+            return;
+        }
+
+        const originalText = confirmRecalc.innerHTML;
+        confirmRecalc.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 计算中...';
+        confirmRecalc.disabled = true;
+
+        fetch('/api/config/recalculate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ month: month })
+        })
+        .then(response => response.json())
+        .then(res => {
+            if (res.code === 200) {
+                showModal('历史数据重新计算成功！', 'success');
+                recalcModal.style.display = 'none';
+            } else {
+                showModal('重新计算失败：' + res.msg, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showModal('网络请求出错', 'error');
+        })
+        .finally(() => {
+            confirmRecalc.innerHTML = originalText;
+            confirmRecalc.disabled = false;
+        });
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人打卡记录 - 考勤数据分析系统</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fontawesome/css/all.min.css') }}">
+    <style>
+        /* 复用基础样式，仅新增筛选/分页样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        body {
+            background-color: #F9FAFB;
+            color: #111827;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .layout {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 240px;
+            background-color: #1A365D;
+            color: #FFFFFF;
+            padding: 16px 0;
+            transition: width 0.2s ease;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 0 16px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 16px;
+        }
+
+        .sidebar-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 核心优化1：统一菜单容器样式 */
+        .sidebar-menu {
+            list-style: none;
+            padding: 0 8px; /* 优化菜单整体内边距 */
+        }
+
+        /* 核心优化2：菜单li增加圆角，提升交互质感 */
+        .sidebar-menu li {
+            margin-bottom: 4px;
+            border-radius: 4px;
+        }
+
+        /* 核心优化3：菜单链接铺满父元素，统一布局 */
+        .sidebar-menu a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            font-size: 14px;
+            border-left: 3px solid transparent;
+            transition: all 0.2s ease;
+            width: 100%; /* 确保宽度铺满li */
+            height: 100%; /* 确保高度铺满li */
+            box-sizing: border-box;
+        }
+
+        /* 核心优化4：固定图标宽度，消除间距偏差 */
+        .sidebar-menu a i {
+            width: 16px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .sidebar-menu a:hover, .sidebar-menu a.active {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #FFFFFF;
+            border-left-color: #3B82F6;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            height: 100vh;
+            margin-left: 240px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .header-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1A365D;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .user-profile img {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #E5E7EB;
+        }
+
+        .user-profile span {
+            font-size: 14px;
+            color: #6B7280;
+        }
+
+        /* 新增筛选栏样式 */
+        .filter-bar {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        /* 修复：给filter-group设置最小宽度，避免挤压 */
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 200px; /* 新增：保证容器宽度，避免文字叠加 */
+        }
+
+        .filter-group label {
+            font-size: 14px;
+            color: #6B7280;
+            font-weight: 500;
+            white-space: nowrap; /* 新增：防止label文字换行 */
+        }
+
+        /* 修复：调整select-wrapper宽度，不再强制100% */
+        .filter-group .select-wrapper {
+            position: relative;
+            flex: 1; /* 新增：自适应剩余宽度，而非100% */
+            min-width: 120px; /* 新增：保证下拉框最小宽度 */
+        }
+
+        .filter-control {
+            padding: 8px 12px;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #111827;
+            transition: border-color 0.2s ease;
+            width: 100%; /* 新增：让输入框/下拉框铺满容器 */
+        }
+
+        /* 修复：调整select的padding-right，确保箭头在框内 */
+        .filter-control.select {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding-right: 40px; /* 增大：从30px改为40px，给箭头留足够空间 */
+        }
+
+        .filter-control:hover {
+            border-color: #9CA3AF;
+        }
+
+        .filter-control:focus {
+            outline: none;
+            border-color: #3B82F6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        /* 修复：调整箭头位置，确保在框内 */
+        .filter-group .select-wrapper::after {
+            content: "";
+            border: 4px solid transparent;
+            border-top-color: #6B7280;
+            border-bottom: none;
+            position: absolute;
+            right: 12px; /* 微调：从12px改为15px，更居中 */
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .btn-filter {
+            padding: 8px 16px;
+            background-color: #3B82F6;
+            color: #FFFFFF;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            /* 新增：保证按钮不被挤压 */
+            white-space: nowrap;
+        }
+
+        .btn-filter:hover {
+            background-color: #2563EB;
+        }
+
+        /* 表格卡片样式 */
+        .table-card {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin-bottom: 24px;
+        }
+
+        .table-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .data-table th, .data-table td {
+            padding: 12px 8px;
+            text-align: left;
+            border-bottom: 1px solid #E5E7EB;
+            font-size: 14px;
+            vertical-align: middle;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .data-table th {
+            color: #6B7280;
+            font-weight: 500;
+        }
+
+        .data-table td {
+            color: #111827;
+        }
+
+        .data-table tr:hover {
+            background-color: #F9FAFB;
+        }
+
+        .remark-cell {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .remark-text {
+            flex: 1;
+            min-width: 0;
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .badge-normal {
+            background-color: #D1FAE5;
+            color: #059669;
+        }
+
+        .badge-warning {
+            background-color: #FEF3C7;
+            color: #D97706;
+        }
+
+        .badge-danger {
+            background-color: #FEE2E2;
+            color: #EF4444;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 16px;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .pagination-info {
+            margin-right: 16px;
+            font-size: 14px;
+            color: #6B7280;
+        }
+
+        .pagination-btn {
+            padding: 6px 12px;
+            border: 1px solid #E5E7EB;
+            background-color: #FFFFFF;
+            color: #6B7280;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            border-color: #3B82F6;
+            color: #3B82F6;
+        }
+
+        .pagination-btn.active {
+            background-color: #3B82F6;
+            color: #FFFFFF;
+            border-color: #3B82F6;
+        }
+
+        .pagination-btn:disabled {
+            background-color: #F9FAFB;
+            color: #9CA3AF;
+            cursor: not-allowed;
+        }
+
+        /* Modal Styles（对齐 admin-dashboard/common.css） */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            display: none;
+        }
+
+        .modal {
+            background: #FFFFFF;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 420px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            animation: modalFadeIn 0.2s ease-out;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .modal-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1A365D;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            line-height: 1.5;
+        }
+
+        .modal-close {
+            font-size: 20px;
+            color: #6B7280;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .modal-close:hover {
+            background-color: #F3F4F6;
+        }
+
+        .modal-body {
+            font-size: 14px;
+            color: #111827;
+            line-height: 1.5;
+            margin-bottom: 24px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .modal-btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .modal-btn-primary {
+            background-color: #3B82F6;
+            color: #FFFFFF;
+        }
+
+        .modal-btn-primary:hover {
+            background-color: #2563EB;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #3B82F6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: #3B82F6;
+            color: #FFFFFF;
+        }
+
+        .btn-primary:hover {
+            background-color: #2563EB;
+        }
+
+        .btn-secondary {
+            background-color: #FFFFFF;
+            color: #374151;
+            border: 1px solid #D1D5DB;
+        }
+
+        .btn-secondary:hover {
+            background-color: #F3F4F6;
+        }
+
+        .edit-remark-btn {
+            cursor: pointer;
+            color: #3B82F6;
+            margin-left: 8px;
+            font-size: 12px;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .edit-remark-btn:hover {
+            color: #2563EB;
+            text-decoration: underline;
+        }
+
+        /* 响应式适配（优化细节） */
+        @media (max-width: 768px) {
+            .layout {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                padding: 8px 0;
+                position: relative;
+                height: auto;
+                overflow-y: visible;
+            }
+
+            .sidebar-menu {
+                display: flex;
+                overflow-x: auto;
+                padding: 0; /* 移动端移除菜单内边距 */
+            }
+
+            .sidebar-menu li {
+                margin-bottom: 0;
+                margin-right: 4px; /* 移动端菜单项横向间距 */
+            }
+
+            .sidebar-menu a {
+                padding: 12px 12px; /* 移动端缩小内边距 */
+                white-space: nowrap; /* 防止文字换行 */
+            }
+
+            .main-content {
+                padding: 16px;
+                height: auto;
+                margin-left: 0;
+                overflow-y: visible;
+            }
+
+            body {
+                height: auto;
+                overflow: auto;
+            }
+
+            .filter-bar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .filter-group {
+                width: 100%; /* 移动端filter-group铺满宽度 */
+                min-width: unset; /* 取消最小宽度限制 */
+            }
+
+            .data-table {
+                font-size: 12px;
+            }
+
+            .data-table th, .data-table td {
+                padding: 8px 4px;
+            }
+
+            /* 移动端表格横向滚动 */
+            .table-wrapper {
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <!-- 侧边栏（打卡记录菜单激活） -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fa-solid fa-clock"></i> 考勤管理系统</h2>
+        </div>
+        <ul class="sidebar-menu">
+            {% if session.role == 'manager' %}
+            <li><a href="/manager/dashboard"><i class="fa-solid fa-tachometer-alt"></i> 部门数据</a></li>
+            <li><a href="/manager/leave-approval"><i class="fa-solid fa-check-to-slot"></i> 请假审批</a></li>
+            <li><a href="/employee/leave-apply"><i class="fa-solid fa-paper-plane"></i> 请假申请</a></li>
+            <li><a href="/manager/data-import"><i class="fa-solid fa-file-excel"></i> 数据导入</a></li>
+            <li><a href="/manager/departmental-analysis"><i class="fa-solid fa-chart-bar"></i> 部门分析</a></li>
+            <li><a href="/manager/departmental-abnormal"><i class="fa-solid fa-exclamation-triangle"></i> 部门异常</a></li>
+            <li><a href="/employee/dashboard"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+            <li><a href="/employee/attendance-record" class="active"><i class="fa-solid fa-calendar-check"></i> 打卡记录</a></li>
+            <li><a href="/employee/abnormal-record"><i class="fa-solid fa-exclamation-circle"></i> 异常记录</a></li>
+            {% elif session.role == 'admin' %}
+            <li><a href="/admin/dashboard"><i class="fa-solid fa-tachometer-alt"></i> 数据总览</a></li>
+            <li><a href="/admin/leave-approval"><i class="fa-solid fa-check-to-slot"></i> 请假审批</a></li>
+            <li><a href="/employee/leave-apply"><i class="fa-solid fa-paper-plane"></i> 请假申请</a></li>
+            <li><a href="/employee/dashboard"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+            {% else %}
+            <li><a href="/employee/dashboard"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+            <li><a href="/employee/attendance-record" class="active"><i class="fa-solid fa-calendar-check"></i> 打卡记录</a></li>
+            <li><a href="/employee/abnormal-record"><i class="fa-solid fa-exclamation-circle"></i> 异常记录</a></li>
+            <li><a href="/employee/leave-apply"><i class="fa-solid fa-calendar-plus"></i> 请假申请</a></li>
+            {% endif %}
+            <li><a href="/logout"><i class="fa-solid fa-sign-out-alt"></i> 退出登录</a></li>
+        </ul>
+    </aside>
+
+    <!-- 打卡记录主内容区 -->
+    <main class="main-content">
+        <div class="header">
+            <h1 class="header-title">个人打卡记录</h1>
+            <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name={{ name[0] }}&background=1A365D&color=fff&rounded=true&bold=true&font-size=0.6" alt="Avatar">
+                <span>{{ name }}（{{ session.role }}）</span>
+            </div>
+        </div>
+
+        <!-- 筛选栏 -->
+        <div class="filter-bar">
+            <div class="filter-group">
+                <label for="checkinMonth">查询月份：</label>
+                <input type="month" id="checkinMonth" class="filter-control" value="2025-12">
+            </div>
+            <div class="filter-group">
+                <label for="statusFilter">考勤状态：</label>
+                <!-- 新增select-wrapper容器 -->
+                <div class="select-wrapper">
+                    <select id="statusFilter" class="filter-control select">
+                        <option value="all">全部状态</option>
+                        <option value="normal">正常</option>
+                        <option value="late">迟到</option>
+                        <option value="early">早退</option>
+                        <option value="absent">旷工</option>
+                        <option value="missing">漏打卡</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn-filter"><i class="fa-solid fa-magnifying-glass"></i> 查询</button>
+        </div>
+
+        <!-- 打卡明细表格 -->
+        <div class="table-card">
+            <h3><i class="fa-solid fa-list"></i> 2025年12月打卡明细</h3>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <colgroup>
+                        <col style="width: 15%;">
+                        <col style="width: 15%;">
+                        <col style="width: 15%;">
+                        <col style="width: 15%;">
+                        <col style="width: 15%;">
+                        <col style="width: 25%;">
+                    </colgroup>
+                    <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>星期</th>
+                        <th>上班打卡时间</th>
+                        <th>下班打卡时间</th>
+                        <th>考勤状态</th>
+                        <th>备注</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <!-- 数据将由JavaScript动态渲染 -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 分页控件 -->
+            <div class="pagination">
+                <!-- 分页将由JavaScript动态渲染 -->
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Edit Remark Modal -->
+<div class="modal-overlay" id="remark-modal">
+    <div class="modal" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3>编辑异常说明</h3>
+            <i class="fa-solid fa-xmark modal-close" onclick="closeRemarkModal()"></i>
+        </div>
+        <div class="modal-body">
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label style="display:block;margin-bottom:8px;font-size:14px;color:#6B7280;">异常日期</label>
+                <input type="text" id="remark-date" class="form-control" readonly style="background-color:#F3F4F6;width:100%;">
+            </div>
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label style="display:block;margin-bottom:8px;font-size:14px;color:#6B7280;">异常说明</label>
+                <textarea id="remark-content" class="form-control" rows="4" placeholder="请填写异常原因，如：路上堵车、系统漏刷等" style="width:100%;resize:vertical;"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeRemarkModal()">取消</button>
+            <button class="btn btn-primary" onclick="submitRemark()">保存</button>
+        </div>
+    </div>
+</div>
+
+{% include 'includes/_modals.html' %}
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+
+<script>
+    let currentPage = 1;
+    const pageSize = 10;
+    let currentEditId = null; // Track current editing abnormal record
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set default month to current month
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        document.getElementById('checkinMonth').value = `${year}-${month}`;
+        
+        fetchAttendanceData();
+    });
+
+    // 筛选查询按钮点击事件
+    document.querySelector('.btn-filter').addEventListener('click', function () {
+        currentPage = 1; // Reset to page 1 on new filter
+        fetchAttendanceData();
+    });
+
+    async function fetchAttendanceData(page = currentPage) {
+        const monthVal = document.getElementById('checkinMonth').value;
+        const statusVal = document.getElementById('statusFilter').value;
+        const statusText = document.getElementById('statusFilter').options[document.getElementById('statusFilter').selectedIndex].text;
+
+        // Update table title
+        if (monthVal) {
+            document.querySelector('.table-card h3').innerHTML = `<i class="fa-solid fa-list"></i> ${monthVal.replace('-', '年')}月打卡明细（${statusText}）`;
+        } else {
+            document.querySelector('.table-card h3').innerHTML = `<i class="fa-solid fa-list"></i> 打卡明细（${statusText}）`;
+        }
+
+        try {
+            // Build query params
+            const params = new URLSearchParams({
+                page: page,
+                per_page: pageSize,
+                status: statusText === '全部状态' ? 'all' : statusText
+            });
+            
+            if (monthVal) {
+                params.append('month', monthVal);
+            }
+
+            const response = await fetch(`/api/employee/attendance/list?${params.toString()}`);
+            const result = await response.json();
+
+            if (result.code === 200) {
+                renderTable(result.data.items);
+                renderPagination(result.data);
+                currentPage = page;
+            } else {
+                showModal(result.msg || '获取数据失败', 'error');
+            }
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            showModal('网络错误，请稍后重试', 'error');
+        }
+    }
+
+    function renderTable(items) {
+        const tbody = document.querySelector('.data-table tbody');
+        tbody.innerHTML = '';
+
+        if (!items || items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">暂无打卡记录</td></tr>';
+            return;
+        }
+
+        const days = ['日', '一', '二', '三', '四', '五', '六'];
+
+        items.forEach(item => {
+            const dateObj = new Date(item.date);
+            const dayOfWeek = days[dateObj.getDay()];
+
+            const tr = document.createElement('tr');
+
+            const tdDate = document.createElement('td');
+            tdDate.textContent = item.date || '-';
+
+            const tdWeek = document.createElement('td');
+            tdWeek.textContent = dayOfWeek;
+
+            const tdCheckin = document.createElement('td');
+            tdCheckin.textContent = item.checkinTime || '-';
+
+            const tdCheckout = document.createElement('td');
+            tdCheckout.textContent = item.checkoutTime || '-';
+
+            const tdStatus = document.createElement('td');
+            const statusBadge = document.createElement('span');
+            statusBadge.className = `status-badge ${item.statusClass || ''}`.trim();
+            statusBadge.textContent = item.status || '-';
+            tdStatus.appendChild(statusBadge);
+
+            const tdRemark = document.createElement('td');
+            tdRemark.className = 'remark-cell';
+            const remarkText = document.createElement('span');
+            remarkText.className = 'remark-text';
+            remarkText.textContent = item.remark || '-';
+            tdRemark.appendChild(remarkText);
+
+            if (item.abnormal_id) {
+                const editBtn = document.createElement('span');
+                editBtn.className = 'edit-remark-btn';
+                editBtn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> 编辑';
+                editBtn.addEventListener('click', () => {
+                    openRemarkModal(item.abnormal_id, item.date, item.remark || '');
+                });
+                tdRemark.appendChild(editBtn);
+            }
+
+            tr.appendChild(tdDate);
+            tr.appendChild(tdWeek);
+            tr.appendChild(tdCheckin);
+            tr.appendChild(tdCheckout);
+            tr.appendChild(tdStatus);
+            tr.appendChild(tdRemark);
+
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderPagination(data) {
+        const container = document.querySelector('.pagination');
+        container.innerHTML = '';
+
+        if (data.pages <= 1) {
+            container.style.display = 'none';
+            return;
+        }
+
+        container.style.display = 'flex';
+        
+        // 计算页码范围
+        let startPage = Math.max(1, data.page - 2);
+        let endPage = Math.min(data.pages, data.page + 2);
+
+        if (endPage - startPage < 4) {
+            if (startPage === 1) {
+                endPage = Math.min(5, data.pages);
+            } else if (endPage === data.pages) {
+                startPage = Math.max(1, data.pages - 4);
+            }
+        }
+
+        let html = `
+            <button class="pagination-btn" onclick="fetchAttendanceData(1)" ${data.page === 1 ? 'disabled' : ''} title="第一页">
+                <i class="fa-solid fa-angles-left"></i>
+            </button>
+            <button class="pagination-btn" onclick="fetchAttendanceData(${data.page - 1})" ${data.page === 1 ? 'disabled' : ''} title="上一页">
+                <i class="fa-solid fa-chevron-left"></i>
+            </button>
+        `;
+
+        // 页码按钮
+        for (let i = startPage; i <= endPage; i++) {
+            html += `
+                <button class="pagination-btn ${i === data.page ? 'active' : ''}" 
+                        onclick="fetchAttendanceData(${i})">
+                    ${i}
+                </button>
+            `;
+        }
+
+        html += `
+            <button class="pagination-btn" onclick="fetchAttendanceData(${data.page + 1})" ${data.page === data.pages ? 'disabled' : ''} title="下一页">
+                <i class="fa-solid fa-chevron-right"></i>
+            </button>
+            <button class="pagination-btn" onclick="fetchAttendanceData(${data.pages})" ${data.page === data.pages ? 'disabled' : ''} title="最后一页">
+                <i class="fa-solid fa-angles-right"></i>
+            </button>
+            <span class="pagination-info">
+                第 ${data.page} / ${data.pages} 页，共 ${data.total} 条
+            </span>
+        `;
+
+        container.innerHTML = html;
+    }
+
+    // Modal Functions
+    function openRemarkModal(id, date, currentRemark) {
+        currentEditId = id;
+        document.getElementById('remark-date').value = date;
+        // Clean up remark (remove duration prefix if exists)
+        let cleanRemark = currentRemark || '';
+        if (cleanRemark.includes('迟到') || cleanRemark.includes('早退')) {
+            const match = cleanRemark.match(/\((.*)\)/);
+            if (match) cleanRemark = match[1];
+            else if (cleanRemark.startsWith('迟到') || cleanRemark.startsWith('早退')) {
+                 // If it's just "迟到X分钟", clear it for new input
+                 if (!cleanRemark.includes(' ')) cleanRemark = '';
+            }
+        }
+        document.getElementById('remark-content').value = cleanRemark === '-' ? '' : cleanRemark;
+        document.getElementById('remark-modal').style.display = 'flex';
+    }
+
+    function closeRemarkModal() {
+        document.getElementById('remark-modal').style.display = 'none';
+        currentEditId = null;
+    }
+
+    async function submitRemark() {
+        const remark = document.getElementById('remark-content').value.trim();
+        if (!remark) {
+            showModal('请填写异常说明', 'warning');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/employee/abnormal/update-remark', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    abnormal_id: currentEditId,
+                    remark: remark
+                })
+            });
+            const result = await response.json();
+            if (result.code === 200) {
+                showModal('说明提交成功，请等待管理人员审核', 'success');
+                closeRemarkModal();
+                fetchAttendanceData(); // Refresh list
+            } else {
+                showModal(result.msg || '提交失败', 'error');
+            }
+        } catch (error) {
+            console.error('Error submitting remark:', error);
+            showModal('提交失败，请稍后重试', 'error');
+        }
+    }
+
+    // Close modal on outside click
+    window.onclick = function(event) {
+        const modal = document.getElementById('remark-modal');
+        if (event.target === modal) {
+            closeRemarkModal();
+        }
+    }
+</script>
+</body>
+</html>

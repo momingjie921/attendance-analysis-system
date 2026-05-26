@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>部门经理 - 部门分析 | 考勤数据分析系统</title>
+    <link rel="stylesheet" href="/static/fontawesome/css/all.min.css">
+    <script src="/static/echarts/echarts.min.js"></script>
+    <style>
+        /* 基础样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+        body {
+            background-color: #F9FAFB;
+            color: #111827;
+        }
+        .layout {
+            display: flex;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: 240px;
+            background-color: #1A365D;
+            color: #FFFFFF;
+            padding: 16px 0;
+            transition: width 0.2s ease;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        .sidebar-header {
+            padding: 0 16px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 16px;
+        }
+        .sidebar-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .sidebar-menu {
+            list-style: none;
+            padding: 0 8px;
+        }
+        .sidebar-menu li {
+            margin-bottom: 4px;
+            border-radius: 4px;
+        }
+        .sidebar-menu a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            font-size: 14px;
+            border-left: 3px solid transparent;
+            transition: all 0.2s ease;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+        }
+        .sidebar-menu a i {
+            width: 16px;
+            text-align: center;
+            font-size: 14px;
+        }
+        .sidebar-menu a:hover, .sidebar-menu a.active {
+            background-color: rgba(255,255,255,0.1);
+            color: #FFFFFF;
+            border-left-color: #3B82F6;
+        }
+        .main-content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            margin-left: 240px;
+            width: calc(100% - 240px);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .header-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1A365D;
+        }
+        .header-title span {
+            font-size: 14px;
+            color: #6B7280;
+            font-weight: 400;
+            margin-left: 8px;
+        }
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .user-profile img {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #E5E7EB;
+        }
+        .user-profile span {
+            font-size: 14px;
+            color: #6B7280;
+        }
+
+        /* 筛选栏样式 */
+        .filter-bar {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 24px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 16px;
+        }
+        .filter-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 120px;
+        }
+        .filter-item label {
+            font-size: 12px;
+            color: #6B7280;
+            font-weight: 500;
+        }
+        /* 核心修复：下拉框箭头容器 - 确保容器完全包裹select */
+        .filter-item .select-wrapper {
+            position: relative;
+            width: 100%;
+            /* 确保容器和select边框对齐 */
+            display: inline-block;
+        }
+        .filter-item select, .filter-item input {
+            padding: 8px 12px;
+            border: 1px solid #E5E7EB;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #111827;
+            background-color: #F9FAFB;
+            transition: border-color 0.2s ease;
+            width: 100%; /* 确保select铺满容器 */
+        }
+        #time-range::-webkit-calendar-picker-indicator {
+            margin-left: 8px;
+            width: 16px;
+            height: 16px;
+            padding: 0;
+            cursor: pointer;
+            vertical-align: middle;
+            transform: translateY(1px);
+        }
+        /* 修复：隐藏默认下拉箭头 + 调整右侧内边距（预留足够空间） */
+        .filter-item select {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding-right: 24px; /* 减少右侧内边距，适配箭头位置 */
+        }
+        /* 修复：自定义箭头位置（right改为8px，确保在内部） */
+        .filter-item .select-wrapper::after {
+            content: "";
+            border: 4px solid transparent;
+            border-top-color: #6B7280;
+            border-bottom: none;
+            position: absolute;
+            right: 12px; /* 从12px改为8px，确保箭头在select内部 */
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            z-index: 2;
+            /* 确保箭头不超出容器 */
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        .filter-item select:hover, .filter-item input:hover {
+            border-color: #9CA3AF;
+        }
+        .filter-item select:focus, .filter-item input:focus {
+            outline: none;
+            border-color: #3B82F6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+        .filter-btn {
+            padding: 8px 16px;
+            background-color: #3B82F6;
+            color: #FFFFFF;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            margin-left: auto;
+        }
+        .filter-btn:hover {
+            background-color: #2563EB;
+        }
+
+        /* 核心指标卡片 */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .card {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: all 0.2s ease;
+        }
+        .card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+        .card-title {
+            font-size: 14px;
+            color: #6B7280;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .card-title small {
+            font-size: 12px;
+            color: #9CA3AF;
+        }
+        .card-value {
+            font-size: 28px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 4px;
+        }
+        .card-compare {
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .compare-up {
+            color: #10B981;
+        }
+        .compare-down {
+            color: #EF4444;
+        }
+
+        /* 分析图表区域（核心：图表居中优化） */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .chart-card {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            height: 350px;
+            transition: all 0.2s ease;
+            /* 关键：启用Flex布局，让子元素垂直+水平居中 */
+            display: flex;
+            flex-direction: column;
+        }
+        .chart-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+        }
+        .chart-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 16px;
+            /* 关键：标题不收缩，固定高度 */
+            flex-shrink: 0;
+        }
+        /* 关键：图表容器占满剩余空间，且自身内容居中 */
+        .chart-card > div {
+            flex: 1;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 小组统计表格 */
+        .table-card {
+            background: #FFFFFF;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 24px;
+        }
+        .table-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1A365D;
+            margin-bottom: 16px;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .data-table th, .data-table td {
+            padding: 12px 8px;
+            text-align: left;
+            border-bottom: 1px solid #E5E7EB;
+            font-size: 14px;
+        }
+        .data-table th {
+            color: #6B7280;
+            font-weight: 500;
+        }
+        .data-table td {
+            color: #111827;
+        }
+        .data-table tr:hover {
+            background-color: #F9FAFB;
+        }
+
+        /* 响应式适配 */
+        @media (max-width: 768px) {
+            .layout {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                padding: 8px 0;
+                position: static;
+                height: auto;
+                overflow-y: visible;
+            }
+            .sidebar-menu {
+                display: flex;
+                overflow-x: auto;
+                padding: 0;
+            }
+            .sidebar-menu li {
+                margin-bottom: 0;
+                margin-right: 4px;
+            }
+            .sidebar-menu a {
+                padding: 12px 12px;
+                white-space: nowrap;
+            }
+            .main-content {
+                padding: 16px;
+                margin-left: 0;
+                width: 100%;
+            }
+            .filter-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .filter-btn {
+                margin-left: 0;
+                width: 100%;
+            }
+            .chart-grid {
+                grid-template-columns: 1fr;
+            }
+            .chart-card {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fa-solid fa-clock"></i> 考勤管理系统</h2>
+            </div>
+            <ul class="sidebar-menu">
+                {% if session.role == 'manager' %}
+                <li><a href="/manager/dashboard"><i class="fa-solid fa-tachometer-alt"></i> 部门数据</a></li>
+                <li><a href="/manager/leave-approval"><i class="fa-solid fa-check-to-slot"></i> 请假审批</a></li>
+                <li><a href="/employee/leave-apply"><i class="fa-solid fa-paper-plane"></i> 请假申请</a></li>
+                <li><a href="/manager/data-import"><i class="fa-solid fa-file-excel"></i> 数据导入</a></li>
+                <li><a href="/manager/departmental-analysis" class="active"><i class="fa-solid fa-chart-bar"></i> 部门分析</a></li>
+                <li><a href="/manager/departmental-abnormal"><i class="fa-solid fa-exclamation-triangle"></i> 部门异常</a></li>
+                <li><a href="/employee/dashboard"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+                <li><a href="/employee/attendance-record"><i class="fa-solid fa-calendar-check"></i> 打卡记录</a></li>
+                <li><a href="/employee/abnormal-record"><i class="fa-solid fa-exclamation-circle"></i> 异常记录</a></li>
+                {% elif session.role == 'admin' %}
+                <li><a href="/admin/dashboard"><i class="fa-solid fa-tachometer-alt"></i> 数据总览</a></li>
+                <li><a href="/admin/leave-approval"><i class="fa-solid fa-check-to-slot"></i> 请假审批</a></li>
+                <li><a href="/employee/leave-apply"><i class="fa-solid fa-paper-plane"></i> 请假申请</a></li>
+                <li><a href="/admin/departmental-analysis" class="active"><i class="fa-solid fa-chart-bar"></i> 部门分析</a></li>
+                <li><a href="/employee/dashboard"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+                {% else %}
+                <li><a href="/employee/dashboard"><i class="fa-solid fa-user"></i> 个人考勤</a></li>
+                <li><a href="/employee/attendance-record"><i class="fa-solid fa-calendar-check"></i> 打卡记录</a></li>
+                <li><a href="/employee/abnormal-record"><i class="fa-solid fa-exclamation-circle"></i> 异常记录</a></li>
+                <li><a href="/employee/leave-apply"><i class="fa-solid fa-calendar-plus"></i> 请假申请</a></li>
+                {% endif %}
+                <li><a href="/logout"><i class="fa-solid fa-sign-out-alt"></i> 退出登录</a></li>
+            </ul>
+        </aside>
+
+        <!-- 主内容区：部门分析 -->
+        <main class="main-content">
+            <div class="header">
+                <h1 class="header-title">{{ dept }}考勤分析</h1>
+                <div class="user-profile">
+                <img src="https://ui-avatars.com/api/?name={{ name[0] }}&background=1A365D&color=fff&rounded=true&bold=true&font-size=0.6" alt="Avatar">
+                <span>{{ name }}（{{ session.role }}）</span>
+            </div>
+            </div>
+
+            <!-- 筛选栏（下拉框新增select-wrapper容器） -->
+            <div class="filter-bar">
+                <div class="filter-item">
+                    <label>分析维度</label>
+                    <div class="select-wrapper">
+                        <select id="analysis-dimension">
+                            <option value="month">月度</option>
+                            <option value="quarter">季度</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="filter-item">
+                    <label>时间范围</label>
+                    <!-- 月度选择 -->
+                    <input type="month" id="time-range" value="2025-12">
+                    
+                    <!-- 季度选择（年份+季度） -->
+                    <div id="quarter-selector" style="display: none; gap: 8px; align-items: center;">
+                        <input type="number" id="year-select" class="filter-input" style="width: 80px; padding: 8px;" min="2000" placeholder="年份">
+                        <div class="select-wrapper" style="width: 100px;">
+                            <select id="quarter-select">
+                                <option value="1">Q1</option>
+                                <option value="2">Q2</option>
+                                <option value="3">Q3</option>
+                                <option value="4">Q4</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="filter-item">
+                    <label>分析指标</label>
+                    <div class="select-wrapper">
+                        <select id="analysis-indicator">
+                            <option value="attendance">出勤率</option>
+                            <option value="abnormal">异常率</option>
+                            <option value="check-time">平均打卡时长</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="filter-btn"><i class="fa-solid fa-magnifying-glass"></i> 查询</button>
+            </div>
+
+            <!-- 核心分析指标卡片 -->
+            <div class="card-grid">
+                <div class="card">
+                    <div class="card-title">
+                        部门出勤率 <small>vs 公司平均</small>
+                    </div>
+                    <div class="card-value" id="val-att-rate">-</div>
+                    <div class="card-compare" id="cmp-att-rate">
+                        Loading...
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">
+                        部门异常率 <small>vs 公司平均</small>
+                    </div>
+                    <div class="card-value" id="val-abnormal-rate">-</div>
+                    <div class="card-compare" id="cmp-abnormal-rate">
+                        Loading...
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">
+                        平均打卡时长 <small>vs 公司平均</small>
+                    </div>
+                    <div class="card-value" id="val-avg-work">-</div>
+                    <div class="card-compare" id="cmp-avg-work">
+                        Loading...
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">
+                        旷工率 <small>本月</small>
+                    </div>
+                    <div class="card-value" id="val-absent-rate">-</div>
+                    <div class="card-compare" id="cmp-absent-rate">
+                        Loading...
+                    </div>
+                </div>
+            </div>
+
+            <!-- 分析图表区域 -->
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3 id="trend-chart-title">核心指标趋势分析</h3>
+                    <div id="weekAttendanceChart"></div>
+                </div>
+                <div class="chart-card">
+                    <h3>部门 vs 公司平均出勤率对比</h3>
+                    <div id="deptVsCompanyChart"></div>
+                </div>
+                <div class="chart-card">
+                    <h3>部门员工异常次数排名</h3>
+                    <div id="empAbnormalRankChart"></div>
+                </div>
+            </div>
+
+            <!-- 部门小组考勤统计 -->
+            <div class="table-card">
+                <h3 id="subgroup-table-title">{{ dept }}下级部门考勤统计</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>部门名称</th>
+                            <th>员工数</th>
+                            <th>出勤率</th>
+                            <th>异常次数</th>
+                            <th>平均迟到时长</th>
+                            <th>旷工人数</th>
+                        </tr>
+                    </thead>
+                    <tbody id="subgroup-tbody">
+                        <!-- JS Rendered -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const DEPT_NAME = "{{ dept }}";
+
+        // 1. 初始化周度出勤率趋势图（居中配置）
+        const weekAttendanceChart = echarts.init(document.getElementById('weekAttendanceChart'));
+        weekAttendanceChart.setOption({
+            tooltip: {
+                trigger: 'axis',
+                textStyle: { fontSize: 12 },
+                formatter: '第{b}周：{c}%'
+            },
+            grid: {
+                left: '5%',    // 左右边距对称，水平居中
+                right: '5%',
+                bottom: '8%',
+                top: '5%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                data: [], // Dynamic
+                axisLabel: { fontSize: 12 },
+                axisLine: { lineStyle: { color: '#E5E7EB' } },
+                alignTicks: true // X轴刻度居中
+            },
+            yAxis: {
+                type: 'value',
+                max: 100,
+                min: 0,
+                axisLabel: { fontSize: 12, formatter: '{value}%' },
+                axisLine: { lineStyle: { color: '#E5E7EB' } },
+                splitLine: { lineStyle: { color: '#F3F4F6' } },
+                alignTicks: true // Y轴刻度居中
+            },
+            series: [{
+                name: '周出勤率',
+                type: 'line',
+                data: [], // Dynamic
+                smooth: true,
+                lineStyle: { color: '#3B82F6', width: 2 },
+                itemStyle: { color: '#1A365D' },
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        { offset: 0, color: 'rgba(59, 130, 246, 0.3)' },
+                        { offset: 1, color: 'rgba(59, 130, 246, 0.0)' }
+                    ])
+                }
+            }]
+        });
+
+        // 2. 初始化部门vs公司平均出勤率对比图（居中配置）
+        const deptVsCompanyChart = echarts.init(document.getElementById('deptVsCompanyChart'));
+        deptVsCompanyChart.setOption({
+            tooltip: {
+                trigger: 'axis',
+                textStyle: { fontSize: 12 },
+                formatter: '{b}：{c}%'
+            },
+            grid: {
+                left: '5%',
+                right: '5%',
+                bottom: '8%',
+                top: '5%',
+                containLabel: true
+            },
+            legend: {
+                top: '0',
+                textStyle: { fontSize: 12 },
+                data: [DEPT_NAME, '公司平均']
+            },
+            xAxis: {
+                type: 'category',
+                data: [], // Dynamic
+                axisLabel: { fontSize: 12 },
+                axisLine: { lineStyle: { color: '#E5E7EB' } },
+                alignTicks: true
+            },
+            yAxis: {
+                type: 'value',
+                max: 100,
+                min: 0,
+                axisLabel: { fontSize: 12, formatter: '{value}%' },
+                axisLine: { lineStyle: { color: '#E5E7EB' } },
+                splitLine: { lineStyle: { color: '#F3F4F6' } },
+                alignTicks: true
+            },
+            series: [
+                {
+                    name: DEPT_NAME,
+                    type: 'line',
+                    data: [], // Dynamic
+                    smooth: true,
+                    lineStyle: { color: '#3B82F6', width: 2 },
+                    itemStyle: { color: '#1A365D' }
+                },
+                {
+                    name: '公司平均',
+                    type: 'line',
+                    data: [], // Dynamic
+                    smooth: true,
+                    lineStyle: { color: '#9CA3AF', width: 2, type: 'dashed' },
+                    itemStyle: { color: '#6B7280' }
+                }
+            ]
+        });
+
+        // 3. 初始化员工异常次数排名图（居中配置）
+        const empAbnormalRankChart = echarts.init(document.getElementById('empAbnormalRankChart'));
+        empAbnormalRankChart.setOption({
+            tooltip: {
+                trigger: 'axis',
+                textStyle: { fontSize: 12 },
+                formatter: '{b}：{c}次'
+            },
+            grid: {
+                left: '5%',
+                right: '5%',
+                bottom: '8%',
+                top: '5%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'category',
+                data: [], // Dynamic
+                axisLabel: { fontSize: 12 },
+                axisLine: { lineStyle: { color: '#E5E7EB' } },
+                alignTicks: true
+            },
+            yAxis: {
+                type: 'value',
+                min: 0,
+                axisLabel: { fontSize: 12 },
+                axisLine: { lineStyle: { color: '#E5E7EB' } },
+                splitLine: { lineStyle: { color: '#F3F4F6' } },
+                alignTicks: true
+            },
+            series: [{
+                name: '异常次数',
+                type: 'bar',
+                data: [], // Dynamic
+                itemStyle: {
+                    color: function(params) {
+                        const colorList = ['#EF4444', '#F59E0B', '#3B82F6', '#6B7280', '#9CA3AF', '#D1D5DB'];
+                        return colorList[params.dataIndex % colorList.length];
+                    }
+                },
+                barWidth: '60%',
+                barMaxWidth: 28
+            }]
+        });
+
+        // 响应式适配：窗口大小变化重绘图表
+        window.addEventListener('resize', function() {
+            weekAttendanceChart.resize();
+            deptVsCompanyChart.resize();
+            empAbnormalRankChart.resize();
+        });
+
+        // Load Data Logic
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAnalysisData();
+        });
+        
+        function loadAnalysisData() {
+            const dim = document.getElementById('analysis-dimension').value;
+            const indicator = document.getElementById('analysis-indicator').value; // Get indicator value
+            
+            let url = `/api/manager/analysis/data?dimension=${dim}&indicator=${indicator}`;
+            
+            if (dim === 'month') {
+                const month = document.getElementById('time-range').value;
+                url += `&month=${month}`;
+            } else {
+                const year = document.getElementById('year-select').value;
+                const quarter = document.getElementById('quarter-select').value;
+                url += `&year=${year}&quarter=${quarter}`;
+            }
+            
+            fetch(url)
+                .then(r => r.json())
+                .then(res => {
+                    if (res.code === 200) {
+                        renderAnalysis(res.data);
+                    } else {
+                        console.error(res.msg);
+                    }
+                });
+        }
+        
+        function renderAnalysis(data) {
+            // Update Cards
+            const c = data.cards;
+            document.getElementById('val-att-rate').textContent = c.att_rate + '%';
+            updateCompare('cmp-att-rate', c.att_diff, '%');
+            
+            document.getElementById('val-abnormal-rate').textContent = c.abnormal_rate + '%';
+            updateCompare('cmp-abnormal-rate', c.abnormal_diff, '%', 'inverse'); 
+            
+            document.getElementById('val-avg-work').textContent = c.avg_work_hours + '小时';
+            updateCompare('cmp-avg-work', c.work_diff, '小时');
+
+            document.getElementById('val-absent-rate').textContent = c.absent_rate + '%';
+            updateCompare('cmp-absent-rate', c.absent_diff, '%', 'inverse');
+
+            // Update Charts Title
+            const indicator = document.getElementById('analysis-indicator').value;
+            const dim = document.getElementById('analysis-dimension').value;
+            const titleMap = {
+                'attendance': '出勤率',
+                'abnormal': '异常率',
+                'check-time': '平均打卡时长'
+            };
+            const dimText = dim === 'month' ? '周度' : '月度';
+            const titleEl = document.getElementById('trend-chart-title');
+            if (titleEl) {
+                titleEl.textContent = `${DEPT_NAME}${dimText}${titleMap[indicator] || '核心指标'}趋势`;
+            }
+
+            const subgroupTitleEl = document.getElementById('subgroup-table-title');
+            if (subgroupTitleEl) {
+                if (dim === 'month') {
+                    const month = document.getElementById('time-range').value;
+                    const [y, m] = (month || '').split('-');
+                    subgroupTitleEl.textContent = y && m ? `${DEPT_NAME}下级部门考勤统计（${y}年${m}月）` : `${DEPT_NAME}下级部门考勤统计`;
+                } else {
+                    const year = document.getElementById('year-select').value;
+                    const quarter = document.getElementById('quarter-select').value;
+                    subgroupTitleEl.textContent = year && quarter ? `${DEPT_NAME}下级部门考勤统计（${year}年${quarter}）` : `${DEPT_NAME}下级部门考勤统计`;
+                }
+            }
+
+            // Update Charts
+            const isCheckTime = indicator === 'check-time';
+            const trendUnit = isCheckTime ? '小时' : '%';
+            weekAttendanceChart.setOption({
+                tooltip: {
+                    formatter: function(params) {
+                        const p = Array.isArray(params) ? params[0] : params;
+                        if (!p) return '';
+                        return `${p.axisValue}：${p.data}${trendUnit}`;
+                    }
+                },
+                yAxis: {
+                    max: isCheckTime ? function(v) { return Math.max(12, Math.ceil(v.max)); } : 100,
+                    min: 0,
+                    axisLabel: { fontSize: 12, formatter: `{value}${trendUnit}` }
+                },
+                series: [{ 
+                    name: titleMap[indicator] || '数值',
+                    data: data.charts.week_trend.data 
+                }],
+                xAxis: { data: data.charts.week_trend.labels }
+            });
+            
+            deptVsCompanyChart.setOption({
+                xAxis: { data: data.charts.compare.labels },
+                series: [
+                    { data: data.charts.compare.dept },
+                    { data: data.charts.compare.comp }
+                ]
+            });
+            
+            empAbnormalRankChart.setOption({
+                xAxis: { data: data.charts.rank.names },
+                series: [{ data: data.charts.rank.counts }]
+            });
+            
+            // Update Table
+            const tbody = document.getElementById('subgroup-tbody');
+            tbody.innerHTML = '';
+            if (data.table && data.table.length > 0) {
+                data.table.forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${row.name}</td>
+                        <td>${row.emp_count}</td>
+                        <td>${row.att_rate}</td>
+                        <td>${row.abnormal_count}</td>
+                        <td>${row.avg_late}</td>
+                        <td>${row.absent_count}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } else {
+                 tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;">暂无下级部门数据</td></tr>';
+            }
+        }
+        
+        function updateCompare(id, val, unit, mode = 'normal') {
+            const el = document.getElementById(id);
+            if (val > 0) {
+                el.style.color = '';
+                el.className = mode === 'inverse' ? 'card-compare compare-down' : 'card-compare compare-up';
+                el.innerHTML = `<i class="fa-solid fa-arrow-up"></i> ${val}${unit} 高于平均`;
+            } else if (val < 0) {
+                el.style.color = '';
+                el.className = mode === 'inverse' ? 'card-compare compare-up' : 'card-compare compare-down';
+                el.innerHTML = `<i class="fa-solid fa-arrow-down"></i> ${Math.abs(val)}${unit} 低于平均`;
+            } else {
+                el.className = 'card-compare';
+                el.style.color = '#6B7280';
+                el.innerHTML = `<i class="fa-solid fa-minus"></i> 持平`;
+            }
+        }
+
+        // 筛选按钮点击事件
+        document.querySelector('.filter-btn').addEventListener('click', function() {
+            loadAnalysisData();
+        });
+        
+        // 监听筛选变化自动加载
+        document.getElementById('analysis-dimension').addEventListener('change', function() {
+            toggleTimeInputs();
+            loadAnalysisData();
+        });
+        document.getElementById('analysis-indicator').addEventListener('change', loadAnalysisData);
+        document.getElementById('time-range').addEventListener('change', loadAnalysisData);
+        document.getElementById('year-select').addEventListener('change', function() {
+            updateQuarterOptions(); // 年份变化时重新检查季度可用性
+            loadAnalysisData();
+        });
+        document.getElementById('quarter-select').addEventListener('change', loadAnalysisData);
+        
+        // 设置时间选择范围最大值为当前月/年
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = (now.getMonth() + 1).toString().padStart(2, '0');
+        
+        // 初始化月度选择器
+        const monthInput = document.getElementById('time-range');
+        monthInput.max = `${year}-${month}`;
+        monthInput.value = `${year}-${month}`;
+        
+        // 初始化年份选择器
+        const yearInput = document.getElementById('year-select');
+        yearInput.max = year;
+        yearInput.value = year;
+        
+        // 初始化界面状态
+        toggleTimeInputs();
+        updateQuarterOptions(); // 初始检查季度
+        
+        function toggleTimeInputs() {
+            const dim = document.getElementById('analysis-dimension').value;
+            const monthInput = document.getElementById('time-range');
+            const quarterSelector = document.getElementById('quarter-selector');
+            
+            if (dim === 'month') {
+                monthInput.style.display = 'block';
+                quarterSelector.style.display = 'none';
+            } else {
+                monthInput.style.display = 'none';
+                quarterSelector.style.display = 'flex';
+            }
+        }
+        
+        function updateQuarterOptions() {
+            const yearVal = parseInt(document.getElementById('year-select').value);
+            const quarterSelect = document.getElementById('quarter-select');
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentQuarter = Math.ceil((now.getMonth() + 1) / 3);
+            
+            // 如果年份大于当前年份（理论上被max限制不可选，但防止手动输入），全禁用
+            // 如果年份等于当前年份，禁用未来季度
+            
+            Array.from(quarterSelect.options).forEach(opt => {
+                const qVal = parseInt(opt.value);
+                if (yearVal > currentYear) {
+                    opt.disabled = true;
+                } else if (yearVal === currentYear && qVal > currentQuarter) {
+                    opt.disabled = true;
+                } else {
+                    opt.disabled = false;
+                }
+            });
+            
+            // 如果当前选中的季度被禁用，自动切回 Q1 或当前季度
+            if (quarterSelect.selectedOptions[0].disabled) {
+                quarterSelect.value = Math.min(currentQuarter, 4); 
+            }
+        }
+    </script>
+</body>
+</html>
