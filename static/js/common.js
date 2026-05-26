@@ -6,6 +6,43 @@
 // Modal State Variables
 let confirmCallback = null;
 let cancelCallback = null;
+let csrfTokenCache = null;
+
+async function getApiCsrfToken() {
+    if (csrfTokenCache) return csrfTokenCache;
+    const res = await window.fetch('/api/csrf-token', {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json' }
+    });
+    if (!res.ok) throw new Error('Failed to get CSRF token');
+    const data = await res.json();
+    csrfTokenCache = data?.data?.csrf_token || null;
+    if (!csrfTokenCache) throw new Error('Invalid CSRF token payload');
+    return csrfTokenCache;
+}
+
+(function patchFetchForApiCsrf() {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async function(input, init = {}) {
+        const requestUrl = typeof input === 'string' ? input : (input?.url || '');
+        const method = ((init && init.method) || (typeof input !== 'string' && input?.method) || 'GET').toUpperCase();
+        const isWrite = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+        const isApi = requestUrl.startsWith('/api/');
+
+        if (isApi && isWrite) {
+            const token = await getApiCsrfToken();
+            const headers = new Headers(init.headers || {});
+            headers.set('X-CSRF-Token', token);
+            init = {
+                ...init,
+                credentials: init.credentials || 'same-origin',
+                headers
+            };
+        }
+        return originalFetch(input, init);
+    };
+})();
 
 /**
  * Show a general information/success/error/warning modal
