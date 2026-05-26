@@ -1,74 +1,12 @@
-# 更新日志
+# 更新记录
 
-本文档记录项目的重要变更。
+## 2026-05-27
 
-## [2026-05-26] 安全与文档修复
-
-### 修复内容
-
-- 修复 `api/employee_management_api.py` 的密码处理逻辑：
-  - 修复错误的 `password_hash` 赋值路径。
-  - 用户密码更新与重置统一改为 `set_password(...)`。
-
-- 加固 `api/backup_api.py` 的备份文件访问安全：
-  - 新增备份文件名与路径校验函数。
-  - 恢复、删除、下载接口统一使用安全路径解析，防止路径穿越。
-
-- 增强 `api/import_api.py` 的权限控制：
-  - `POST /api/import/analyze` 增加角色鉴权（`admin`、`manager`）。
-  - `POST /api/import/attendance` 增加角色鉴权（`admin`、`manager`）。
-
-- 优化 `app.py` 的默认安全配置：
-  - 移除固定默认 `SECRET_KEY`。
-  - 未配置 `SECRET_KEY` 时，启动时临时生成随机密钥并记录告警日志。
-  - CORS 改为从 `CORS_ORIGINS` 读取允许来源白名单。
-
-### 文档变更
-
-- 重写 `README.md`，与当前实现保持一致：
-  - 统一运行环境说明。
-  - 补充 `.env` 配置示例（含 `CORS_ORIGINS`）。
-  - 增加部署与安全注意事项。
-
-### 影响范围
-
-- 账号管理与密码重置流程
-- 数据导入接口调用权限
-- 备份恢复/下载/删除接口安全性
-- 应用启动配置与跨域访问策略
-
-## [2026-05-26] 可上线最小改造包
-
-### 修复内容
-
-- 新增密码强度校验（`utils/security.py`）：
-  - 密码必须至少 8 位，且包含大小写字母和数字。
-  - 员工建号、账号创建、密码重置、账号更新均启用校验。
-
-- 新增关键操作审计日志（`utils/audit.py`）：
-  - 覆盖导入、备份创建、备份恢复、备份删除、账号创建、密码重置等核心操作。
-
-- 收紧运行安全默认值（`app.py`）：
-  - `SESSION_COOKIE_SECURE` 默认随 `FLASK_DEBUG` 自动切换（生产默认 `true`）。
-  - 增加安全响应头：`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Cache-Control`。
-  - 演示账号初始化改为环境变量开关：`ENABLE_DEMO_DATA`，默认关闭。
-
-### 文档变更
-
-- `README.md` 增加 `ENABLE_DEMO_DATA` 配置项和生产环境安全建议。
-
-## [2026-05-26] 生产可用补齐（三项）
-
-### 已完成
-
-- API 防护：
-  - 新增 `/api/csrf-token` 接口。
-  - 对所有 `POST/PUT/PATCH/DELETE /api/*` 请求增加 `X-CSRF-Token` 校验（可通过 `API_CSRF_PROTECT` 开关控制）。
-
-- 运维基线：
-  - 新增生产配置模板 `.env.production.example`。
-  - 新增部署清单 `docs/PRODUCTION_CHECKLIST.md`（HTTPS、最小权限、备份策略、日志轮转等）。
-
-- 回归测试：
-  - 新增 `tests/test_security_basics.py`（密码强度与文件路径安全）。
-  - 本地执行：`python -m unittest discover -s tests -p "test_*.py"`，通过。
+- 增加数据库结构脚本 `attendance_system.sql`。
+- 增加虚拟中型企业数据脚本 `attendance_seed_medium_enterprise.sql`。
+- 补充运行、测试、灰度和生产上线文档。
+- 增加密码强度校验、CSRF 防护、文件路径安全校验和审计日志。
+- 优化数据库字段默认值、状态约束和请假日期校验。
+- 清理重复索引，降低维护成本。
+- 将环境变量示例改为安全占位值，避免提交真实密钥。
+- 将新增员工默认初始密码示例从弱密码改为强度更高的测试值。
