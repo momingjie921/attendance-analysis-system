@@ -1,5 +1,10 @@
 # Attendance Analysis System
 
+## Guides
+
+- Setup and test guide: [docs/SETUP_AND_TEST_GUIDE.md](docs/SETUP_AND_TEST_GUIDE.md)
+- Production checklist: [docs/PRODUCTION_CHECKLIST.md](docs/PRODUCTION_CHECKLIST.md)
+
 基于 Flask + SQLAlchemy 的考勤管理与分析系统，支持多角色登录、考勤导入、异常分析、请假管理和数据备份恢复。
 
 ## 技术栈
