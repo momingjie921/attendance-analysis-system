@@ -82,11 +82,10 @@ python app.py
 
 ## 测试账号
 
-虚拟数据中的账号仅用于本地演示和测试。首次进入灰度或生产环境前，应重置全部演示账号密码。
+仓库提供两种演示方式，账号和初始密码不完全相同。首次进入灰度或生产环境前，应重置全部演示账号密码。
 
-- 管理员：`admin`
-- 部门经理：`mgr_2` 至 `mgr_12`
-- 普通员工：`u1013` 起
+- 启用 `ENABLE_DEMO_DATA=true` 时，内置演示账号为 `admin / tech_manager / zhangsan`，初始密码分别是 `admin123 / manager123 / employee123`
+- 导入 `attendance_seed_medium_enterprise.sql` 时，账号示例为 `admin / mgr_2 / u1013`，初始密码分别是 `admin123 / manager123 / employee123`
 
 ## 文档
 

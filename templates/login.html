@@ -15,6 +15,7 @@
         <p>高效管理考勤数据，助力企业决策</p>
     </div>
     <form method="POST" action="{{ url_for('login') }}" onsubmit="disableButton()">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         {% if error %}
         <div class="error-tip"><i class="fa-solid fa-circle-exclamation"></i> {{ error }}</div>
         {% endif %}
@@ -39,7 +40,11 @@
     <div class="footer-text">
         © 2025 考勤数据分析系统 - 极简高效 · 专业可靠
         <br>
-        <small>测试账号：admin（密码admin123） | tech_manager（manager123） | zhangsan（employee123）</small>
+        {% if demo_mode %}
+        <small>内置演示账号：admin（admin123） | tech_manager（manager123） | zhangsan（employee123）</small>
+        {% else %}
+        <small>导入 SQL 种子数据后，管理员 / 经理 / 员工的初始密码分别为 admin123、manager123、employee123</small>
+        {% endif %}
     </div>
 </div>
 <script>

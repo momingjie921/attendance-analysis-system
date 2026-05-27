@@ -11,11 +11,11 @@ from utils.file_security import build_safe_file_path
 
 backup_bp = Blueprint('backup_api', __name__)
 
-BACKUP_DIR = 'backups'
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+BACKUP_DIR = os.path.join(BASE_DIR, 'backups')
 
 def ensure_backup_dir():
-    if not os.path.exists(BACKUP_DIR):
-        os.makedirs(BACKUP_DIR)
+    os.makedirs(BACKUP_DIR, exist_ok=True)
 
 def get_safe_backup_path(filename):
     return build_safe_file_path(BACKUP_DIR, filename, suffix=".json")

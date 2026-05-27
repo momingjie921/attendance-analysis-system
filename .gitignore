@@ -20,6 +20,8 @@ ENV/
 !.env.example
 
 # Logs and runtime files
+logs/
+backups/
 *.log
 *.pid
 *.sqlite

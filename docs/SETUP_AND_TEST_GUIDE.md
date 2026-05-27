@@ -88,6 +88,8 @@ DATABASE_URI=mysql+pymysql://attendance_user:your_password@127.0.0.1:3306/attend
 
 本地测试可以先使用本机 MySQL 账号。灰度和生产环境必须使用独立数据库账号，并只授予所需权限。
 
+如果想快速体验内置演示数据，把 `ENABLE_DEMO_DATA` 设为 `true`；如果要导入 `attendance_seed_medium_enterprise.sql`，保持该值为 `false`。SQL 种子账号示例为 `admin / mgr_2 / u1013`，初始密码分别是 `admin123 / manager123 / employee123`。
+
 ## 5. 启动系统
 
 ```powershell
@@ -111,7 +113,7 @@ python -m unittest discover -s tests -p "test_*.py"
 运行语法检查：
 
 ```powershell
-python -m py_compile app.py api\backup_api.py api\employee_management_api.py api\import_api.py utils\security.py utils\audit.py utils\file_security.py
+python -m py_compile app.py api\backup_api.py api\employee_management_api.py api\import_api.py utils\security.py utils\audit.py utils\file_security.py utils\decorators.py utils\session_auth.py
 ```
 
 ## 7. 手工验收流程

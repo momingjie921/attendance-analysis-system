@@ -3,11 +3,12 @@
 from datetime import date, datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, abort, jsonify, g
 from functools import wraps
+import hmac
 import os
 import logging
 import secrets
 from dotenv import load_dotenv
-from flask_wtf.csrf import CSRFProtect, generate_csrf
+from flask_wtf.csrf import CSRFProtect
 from flask_caching import Cache
 from flask_cors import CORS
 from flask_apscheduler import APScheduler
@@ -16,6 +17,7 @@ load_dotenv()
 
 from config.database import init_database, db
 from models import User, Employee, Department
+from utils.session_auth import get_active_session_user
 
 from api import api_bp
 from utils.error_handlers import register_error_handlers
@@ -25,6 +27,9 @@ app = Flask(
     template_folder="templates",
     static_folder="static"
 )
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
 is_debug = os.getenv("FLASK_DEBUG", "False") == "True"
 
 # 从环境变量读取配置
@@ -67,7 +72,7 @@ cache = Cache(app, config={
 
 # 配置日志记录
 logging.basicConfig(
-    filename='logs/app.log',
+    filename=os.path.join(LOG_DIR, 'app.log'),
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
@@ -84,12 +89,15 @@ def log_request_info():
     logging.info(f'[{request.remote_addr}] {request.method} {request.path} - User: {session.get("username", "Anonymous")}')
 
     if request.path.startswith('/api/') and request.method in ['POST', 'PUT', 'PATCH', 'DELETE']:
-        if "username" not in session:
+        user, state = get_active_session_user()
+        if not user:
+            if state == "disabled":
+                return jsonify({"code": 401, "msg": "账号已禁用，请联系管理员"}), 401
             return jsonify({"code": 401, "msg": "未登录，请先登录"}), 401
         if app.config['API_CSRF_PROTECT']:
             expected_token = session.get('api_csrf_token')
             actual_token = request.headers.get('X-CSRF-Token')
-            if not expected_token or expected_token != actual_token:
+            if not expected_token or not hmac.compare_digest(expected_token, actual_token or ""):
                 return jsonify({"code": 403, "msg": "CSRF token 无效"}), 403
 
 @app.after_request
@@ -182,7 +190,8 @@ def role_required(allowed_roles):
     def decorator(view_func):
         @wraps(view_func)
         def wrapper(*args, **kwargs):
-            if "username" not in session:
+            user, state = get_active_session_user()
+            if not user:
                 return redirect(url_for("login"))
 
             # 检查会话是否过期
@@ -197,7 +206,7 @@ def role_required(allowed_roles):
             session['last_activity'] = datetime.now().isoformat()
             session.permanent = True
 
-            current_role = session.get("role")
+            current_role = user.role
             if current_role not in allowed_roles:
                 abort(403)
             return view_func(*args, **kwargs)
@@ -275,20 +284,43 @@ def index():
     return redirect(url_for("login"))
 
 
+def get_login_csrf_token():
+    token = session.get("login_csrf_token")
+    if not token:
+        token = secrets.token_hex(32)
+        session["login_csrf_token"] = token
+    return token
+
+
+def render_login_page(error=None):
+    return render_template(
+        "login.html",
+        error=error,
+        demo_mode=enable_demo_data,
+        csrf_token=get_login_csrf_token()
+    )
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
+        expected_token = session.get("login_csrf_token")
+        actual_token = request.form.get("csrf_token", "")
+        if not expected_token or not hmac.compare_digest(expected_token, actual_token):
+            session["login_csrf_token"] = secrets.token_hex(32)
+            return render_login_page("登录表单已过期，请刷新后重试。"), 400
+
         username = request.form.get("username")
         password = request.form.get("password")
         # 从数据库查询用户
         user = User.query.filter_by(username=username).first()
         # 验证用户和密码（修正：使用verify_password）
         if not user or not user.check_password(password):
-            return render_template("login.html", error="账号或密码错误！")
+            return render_login_page("账号或密码错误！")
 
         # 检查账号状态
         if user.status == 0:
-            return render_template("login.html", error="账号已禁用，请联系管理员！")
+            return render_login_page("账号已禁用，请联系管理员！")
 
         # 更新最后登录时间
         user.last_login_time = datetime.now()
@@ -300,6 +332,7 @@ def login():
         emp_name = emp.emp_name
 
         # 存入session
+        session.clear()
         session["username"] = user.username
         session["role"] = user.role
         session["dept"] = dept
@@ -316,7 +349,7 @@ def login():
             "employee": "employee_dashboard"
         }
         return redirect(url_for(role_to_dashboard[user.role]))
-    return render_template("login.html")
+    return render_login_page()
 
 
 @app.route("/admin/dashboard")
@@ -529,7 +562,10 @@ def logout():
 
 @app.route("/api/csrf-token", methods=["GET"])
 def get_api_csrf_token():
-    if "username" not in session:
+    user, state = get_active_session_user()
+    if not user:
+        if state == "disabled":
+            return jsonify({"code": 401, "msg": "账号已禁用，请联系管理员"}), 401
         return jsonify({"code": 401, "msg": "未登录，请先登录"}), 401
     token = session.get("api_csrf_token")
     if not token:
