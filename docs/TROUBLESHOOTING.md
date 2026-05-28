@@ -20,7 +20,7 @@ SELECT dept_id, dept_name FROM department LIMIT 5;
 SELECT emp_id, emp_name FROM employee LIMIT 5;
 ```
 
-如果查询结果本身就是 `???`，请备份当前数据库后，重新导入最新版 `attendance_seed_medium_enterprise.sql`。
+如果查询结果本身就是 `???`，请备份当前数据库后，重新导入最新版 `attendance_seed_medium_enterprise.sql`。最新版种子脚本使用中文虚拟部门、中文虚拟员工姓名、中文节假日和中文异常说明，适合国内演示和测试。
 
 ## 数据库连接失败
 
