@@ -844,15 +844,17 @@ def get_employee_data():
         status = "正常"
         status_class = "badge-normal" # default green
         remark = "-"
+        late_minutes = att.late_minutes or 0
+        early_minutes = att.early_minutes or 0
         
         if att.is_absent:
             status = "缺勤"
             status_class = "badge-danger" # need to check if css supports
-        elif att.late_minutes > late_threshold:
-            status = f"迟到{att.late_minutes}分钟"
+        elif late_minutes > late_threshold:
+            status = f"迟到{late_minutes}分钟"
             status_class = "badge-warning" # yellow
-        elif att.early_minutes > early_threshold:
-            status = f"早退{att.early_minutes}分钟"
+        elif early_minutes > early_threshold:
+            status = f"早退{early_minutes}分钟"
             status_class = "badge-warning"
         
         # Check abnormal record for more specific status or remark
