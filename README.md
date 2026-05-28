@@ -67,7 +67,13 @@ mysql -u root -p attendance_system < attendance_seed_medium_enterprise.sql
 copy .env.example .env
 ```
 
-按本机 MySQL 用户名、密码和端口修改 `.env` 中的 `DATABASE_URI`。生产环境必须替换 `SECRET_KEY`，不要使用示例值。
+按本机 MySQL 用户名、密码和端口修改 `.env` 中的 `DATABASE_URI`。如果没有创建 `.env`，程序会尝试使用默认本地连接，常见结果是 MySQL 报 `Access denied for user ...`。生产环境必须替换 `SECRET_KEY`，不要使用示例值。
+
+可以先用 MySQL 客户端验证账号密码：
+
+```powershell
+mysql -u 你的MySQL用户名 -p attendance_system
+```
 
 4. 安装依赖并启动：
 

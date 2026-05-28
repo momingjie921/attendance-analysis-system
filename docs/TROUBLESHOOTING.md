@@ -27,6 +27,26 @@ DATABASE_URI=mysql+pymysql://attendance_user:your_password@127.0.0.1:3306/attend
 - 数据库用户没有访问权限
 - 本机端口不是 3306
 
+如果启动时报下面类似错误：
+
+```text
+Access denied for user 'root'@'localhost' (using password: YES)
+```
+
+通常说明 `.env` 没有创建，或 `DATABASE_URI` 中的用户名、密码和本机 MySQL 不一致。先用 MySQL 客户端验证账号：
+
+```powershell
+mysql -u root -p attendance_system
+```
+
+确认能登录后，再把 `.env` 中的连接串改成同一组账号密码，例如：
+
+```env
+DATABASE_URI=mysql+pymysql://root:你的MySQL密码@127.0.0.1:3306/attendance_system
+```
+
+注意不要把真实密码写入 `.env.example`、`.env.production.example` 或提交到 GitHub。
+
 ## SQL 导入失败
 
 先确认数据库为空或已备份。结构脚本和数据脚本需要按顺序导入：
