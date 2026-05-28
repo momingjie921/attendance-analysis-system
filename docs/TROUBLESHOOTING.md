@@ -11,6 +11,17 @@ SHOW VARIABLES LIKE 'collation%';
 
 如果终端显示乱码，优先确认文件本身为 UTF-8，再检查终端编码。GitHub 可正常显示 UTF-8 文档。
 
+如果页面中的员工姓名、部门名称或图表标签显示为 `???`，通常不是前端编码问题，而是数据库中已经写入了问号占位数据。常见原因是曾经导入过旧版种子数据，或通过不支持 UTF-8 的终端方式生成 / 导入了数据。
+
+可以先检查数据库原始值：
+
+```sql
+SELECT dept_id, dept_name FROM department LIMIT 5;
+SELECT emp_id, emp_name FROM employee LIMIT 5;
+```
+
+如果查询结果本身就是 `???`，请备份当前数据库后，重新导入最新版 `attendance_seed_medium_enterprise.sql`。
+
 ## 数据库连接失败
 
 检查 `.env` 中的连接串：
